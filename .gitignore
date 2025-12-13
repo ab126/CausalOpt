@@ -1,3 +1,5 @@
 /test/W_est.csv
 /test/W_true.csv
 /test/X.csv
+/saves/
+/test/.ipynb_checkpoints/
