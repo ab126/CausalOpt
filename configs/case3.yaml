@@ -1,0 +1,9 @@
+case: 3
+seed: 3
+n: 1000
+d: 10
+s0: 10
+p: 1
+k: 0
+simulation: {burn_in: 200, stability_radius: 0.95}
+method: {lambda_0: 0.1, lambda_lag: 0.1}

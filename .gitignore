@@ -1,5 +1,13 @@
-/test/W_est.csv
-/test/W_true.csv
-/test/X.csv
+.ipynb_checkpoints/
+
 /saves/
-/test/.ipynb_checkpoints/
+
+/tests/W_est.csv
+/tests/W_true.csv
+/tests/X.csv
+
+__pycache__/
+*.py[cod]
+/results/
+
+
