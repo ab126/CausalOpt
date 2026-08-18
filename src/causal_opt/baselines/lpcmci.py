@@ -10,5 +10,9 @@ def fit_lpcmci(X,tau_max=1,pc_alpha=.05,**kwargs):
     except ImportError as e: raise ImportError("LPCMCI requires optional package 'tigramite'") from e
     start=time.perf_counter(); dataframe=pp.DataFrame(np.asarray(X)); alg=LPCMCI(dataframe=dataframe,cond_ind_test=ParCorr())
     native=alg.run_lpcmci(tau_max=tau_max,pc_alpha=pc_alpha,**kwargs)
-    return EstimatorResult(graph=native.get("graph"),native_result=native,
-                           runtime_seconds=time.perf_counter()-start,diagnostics={"baseline":"Tigramite LPCMCI"})
+    graph=native.get("graph")
+    symbols,counts=np.unique(graph,return_counts=True) if graph is not None else ([],[])
+    return EstimatorResult(graph=graph,native_result=native,
+      runtime_seconds=time.perf_counter()-start,
+      diagnostics={"baseline":"Tigramite LPCMCI","tau_max":tau_max,"pc_alpha":pc_alpha,
+                   "endpoint_symbol_counts":{str(a):int(b) for a,b in zip(symbols,counts)}})

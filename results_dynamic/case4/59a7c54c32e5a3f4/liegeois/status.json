@@ -1,0 +1,5 @@
+{
+  "status": "unavailable",
+  "exception": "RuntimeError('Li\u00e9geois unavailable: configure matlab_entrypoint and implementation_dir')",
+  "traceback": "Traceback (most recent call last):\n  File \"C:\\Users\\bayer\\PycharmProjects\\CausalOpt\\scripts\\_dynamic_run.py\", line 82, in run_case\n    if not required.issubset(options): raise RuntimeError(\"Li\u00e9geois unavailable: configure matlab_entrypoint and implementation_dir\")\n                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nRuntimeError: Li\u00e9geois unavailable: configure matlab_entrypoint and implementation_dir\n"
+}

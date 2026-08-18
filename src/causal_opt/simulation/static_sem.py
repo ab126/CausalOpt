@@ -30,6 +30,7 @@ class EstimatorResult:
     W0: Optional[np.ndarray] = None
     W_raw: Optional[np.ndarray] = None
     W_lags: Optional[np.ndarray] = None
+    W_lags_raw: Optional[np.ndarray] = None
     Z: Optional[np.ndarray] = None
     L: Optional[np.ndarray] = None
     C: Optional[np.ndarray] = None

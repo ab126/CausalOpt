@@ -1,0 +1,42 @@
+{
+  "W0": {
+    "fdr": 0.0,
+    "tpr": 1.0,
+    "recall": 1.0,
+    "fpr": 0.0,
+    "precision": 1.0,
+    "f1": 1.0,
+    "shd": 0,
+    "nnz": 5,
+    "weight_rmse": 0.01479332759506727,
+    "h": 0.0
+  },
+  "lags": [
+    {
+      "fdr": 0.0,
+      "tpr": 0.25,
+      "recall": 0.25,
+      "fpr": 0.0,
+      "precision": 1.0,
+      "f1": 0.4,
+      "shd": 3,
+      "nnz": 1,
+      "weight_rmse": 0.05563889951337694
+    }
+  ],
+  "lag_aggregate": {
+    "fdr": 0.0,
+    "tpr": 0.25,
+    "recall": 0.25,
+    "fpr": 0.0,
+    "precision": 1.0,
+    "f1": 0.4,
+    "shd": 3,
+    "nnz": 1,
+    "weight_rmse": 0.05563889951337694
+  },
+  "prediction_mse": 1.1819323297861157,
+  "h_raw": 2.5638806633310196e-09,
+  "h_thresholded": 0.0,
+  "runtime": 0.5855097000021487
+}

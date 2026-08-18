@@ -1,0 +1,28 @@
+{
+  "contemporaneous_adjacency": {
+    "precision": 0.5,
+    "recall": 0.8,
+    "f1": 0.6153846153846154,
+    "fdr": 0.5,
+    "fpr": 0.2,
+    "nnz": 8
+  },
+  "lagged_adjacency": {
+    "precision": 1.0,
+    "recall": 0.25,
+    "f1": 0.4,
+    "fdr": 0.0,
+    "fpr": 0.0,
+    "nnz": 1
+  },
+  "metric_note": "Adjacency-only diagnostics; no DAG SHD or weight comparison is applied to LPCMCI's DPAG.",
+  "endpoint_summary": {
+    "": 41,
+    "-->": 2,
+    "<--": 2,
+    "<-o": 1,
+    "o->": 2,
+    "o-o": 2
+  },
+  "runtime": 0.39780189999146387
+}

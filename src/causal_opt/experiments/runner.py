@@ -36,7 +36,7 @@ def run_experiment(config:ExperimentConfig,results_root="results",run_id=None):
             data=simulate_svar(config.n,config.d,config.p,config.seed,s0=config.s0,k=config.k,**config.simulation)
             est=fit_dynamic_latent(data.X,config.p,k=config.k,**config.method)
             metrics=dynamic_metrics(data.W0_true,data.W_lags_true,est.W0,est.W_lags,data.X)
-            if config.k: metrics["latent"]=latent_metrics(data.C_true[config.p:],est.C,data.L_true,est.L)
+            if config.k: metrics["latent"]=latent_metrics(data.C_true,est.C,data.L_true,est.L)
         metrics["runtime"]=est.runtime_seconds; metrics["status"]="ok"
         np.savez_compressed(folder/"truth.npz",**_arrays(data)); np.savez_compressed(folder/"estimate.npz",**_arrays(est))
         (folder/"metrics.json").write_text(json.dumps(metrics,indent=2,default=_json))

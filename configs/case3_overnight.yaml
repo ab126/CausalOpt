@@ -1,0 +1,10 @@
+case: 3
+seed: 1
+n: 2000
+d: 10
+s0: 10
+p: 1
+k: 0
+simulation: {burn_in: 500, lag_sparsity: 0.1, stability_radius: 0.95, noise_scale: 1.0}
+method: {lambda_0: 0.1, lambda_lag: 0.05, w0_threshold: 0.3, wlag_threshold: 0.2}
+baseline: {}

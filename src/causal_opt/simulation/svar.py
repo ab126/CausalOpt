@@ -13,10 +13,12 @@ class TimeSeriesSEMData:
     W_lags_true: np.ndarray
     seed: int
     spectral_radius: float
+    condition_number: float
     innovations: Optional[np.ndarray] = None
     Z_true: Optional[np.ndarray] = None
     L_true: Optional[np.ndarray] = None
     C_true: Optional[np.ndarray] = None
+    Z_aligned_true: Optional[np.ndarray] = None
 
 
 def companion_spectral_radius(W0, W_lags):
@@ -37,15 +39,26 @@ def simulate_svar(T: int, d: int, p: int, seed: int, s0: int | None = None,
                   stability_radius: float = .95, noise_scale: float = 1.,
                   store_innovations: bool = False, k: int = 0,
                   latent_mode: str = "iid", phi_z: float = .5,
-                  latent_density: float = .3) -> TimeSeriesSEMData:
-    if p < 0 or k < 0 or T <= p:
+                  latent_density: float = .3, latent_process: str | None = None,
+                  min_latent_children: int = 2,
+                  loading_ranges=((-1.5, -.5), (.5, 1.5)),
+                  condition_number_max: float = 1e8) -> TimeSeriesSEMData:
+    if latent_process is not None: latent_mode = latent_process
+    if p < 0 or k < 0 or k > d or T <= p or burn_in < 0:
         raise ValueError("require p,k >= 0 and T > p")
+    if not 0 < stability_radius < 1 or noise_scale <= 0:
+        raise ValueError("stability_radius must be in (0,1) and noise_scale positive")
+    if latent_mode not in {"iid", "ar1"}:
+        raise ValueError("latent_process must be 'iid' or 'ar1'")
     if latent_mode == "ar1" and abs(phi_z) >= 1:
         raise ValueError("AR(1) latent process must be stationary")
     utils, rng = _notears_utils(), np.random.default_rng(seed)
     with _numpy_seed(seed):
         B0 = utils.simulate_dag(d, d if s0 is None else s0, "ER")
         W0 = utils.simulate_parameter(B0)
+    condition_number = float(np.linalg.cond(np.eye(d) - W0))
+    if not np.isfinite(condition_number) or condition_number > condition_number_max:
+        raise RuntimeError("I-W0 is pathologically ill-conditioned")
     Wlags = np.zeros((p, d, d))
     for q in range(p):
         mask = rng.random((d, d)) < lag_sparsity
@@ -62,8 +75,11 @@ def simulate_svar(T: int, d: int, p: int, seed: int, s0: int | None = None,
     if k:
         L = np.zeros((d, k))
         for q in range(k):
-            children = rng.choice(d, max(2, min(d, round(d*latent_density))), replace=False)
-            L[children, q] = rng.uniform(.5, 1.5, len(children)) * rng.choice([-1, 1], len(children))
+            count=max(min_latent_children,min(d,round(d*latent_density)))
+            if count>d: raise ValueError("min_latent_children cannot exceed d")
+            children = rng.choice(d, count, replace=False)
+            interval=loading_ranges[int(rng.integers(len(loading_ranges)))]
+            L[children, q] = rng.uniform(interval[0],interval[1],len(children))
     total = T + burn_in
     X = np.zeros((total, d)); Z = np.zeros((total, k)) if k else None
     E = rng.normal(scale=noise_scale, size=(total, d))
@@ -79,12 +95,14 @@ def simulate_svar(T: int, d: int, p: int, seed: int, s0: int | None = None,
             rhs += Z[t] @ L.T
         X[t] = rhs @ inv
     sl = slice(burn_in, total)
-    C = Z[sl] @ L.T if k else None
+    Xout=X[sl]; Zout=Z[sl] if k else None
+    Zaligned=Zout[p:] if k else None
+    C = Zaligned @ L.T if k else None
     if not np.isfinite(X[sl]).all():
         raise FloatingPointError("non-finite simulated samples")
-    return TimeSeriesSEMData(X[sl], W0, Wlags, int(seed), radius,
+    return TimeSeriesSEMData(Xout, W0, Wlags, int(seed), radius, condition_number,
                              E[sl] if store_innovations else None,
-                             Z[sl] if k else None, L, C)
+                             Zout, L, C, Zaligned)
 
 
 def simulate_dynamic_latent_sem(*args, **kwargs):

@@ -1,9 +1,9 @@
 case: 4
-seed: 4
+seed: 1
 n: 1000
 d: 10
 s0: 10
 p: 1
 k: 2
-simulation: {burn_in: 200, stability_radius: 0.95, latent_mode: iid}
-method: {lambda_0: 0.1, lambda_lag: 0.1, lambda_L: 0.1}
+simulation: {burn_in: 200, stability_radius: 0.95, latent_process: iid, min_latent_children: 2}
+method: {lambda_0: 0.1, lambda_lag: 0.05, lambda_latent: 0.02}
