@@ -7,4 +7,4 @@ p: 1
 k: 0
 simulation: {burn_in: 100, lag_sparsity: 0.25, stability_radius: 0.95, noise_scale: 1.0, store_innovations: true}
 method: {lambda_0: 0.1, lambda_lag: 0.05, w0_threshold: 0.3, wlag_threshold: 0.2, max_outer_iter: 30, inner_max_iter: 300}
-baseline: {}
+baseline: {lambda_w: 0.1, lambda_a: 0.05, max_iter: 100, h_tol: 1.0e-8, w_threshold: 0.3}

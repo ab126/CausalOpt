@@ -1,0 +1,5 @@
+{
+  "status": "unavailable",
+  "exception": "ImportError('MATLAB Engine for Python is unavailable')",
+  "traceback": "Traceback (most recent call last):\n  File \"C:\\Users\\bayer\\PycharmProjects\\CausalOpt\\scripts\\_dynamic_run.py\", line 83, in run_case\n    result=fit_liegeois(data.X,p=cfg.p,**options)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\bayer\\PycharmProjects\\CausalOpt\\src\\causal_opt\\baselines\\liegeois.py\", line 49, in fit_liegeois\n    if engine is None and not matlab_engine_available(): raise ImportError(\"MATLAB Engine for Python is unavailable\")\n                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nImportError: MATLAB Engine for Python is unavailable\n"
+}

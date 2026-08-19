@@ -1,0 +1,140 @@
+{
+  "backend": "official CausalNex subprocess",
+  "causalnex_version": "0.12.1",
+  "python_version": "3.10.11",
+  "runtime_seconds": 0.7571848999941722,
+  "p": 1,
+  "d": 5,
+  "edges": [
+    {
+      "source": "0_lag0",
+      "destination": "1_lag0",
+      "weight": -1.6664814616672503e-05
+    },
+    {
+      "source": "0_lag0",
+      "destination": "2_lag0",
+      "weight": -5.866338479166199e-06
+    },
+    {
+      "source": "0_lag0",
+      "destination": "3_lag0",
+      "weight": 3.7637059636743466e-05
+    },
+    {
+      "source": "0_lag0",
+      "destination": "4_lag0",
+      "weight": 1.653258181711242e-05
+    },
+    {
+      "source": "1_lag0",
+      "destination": "3_lag0",
+      "weight": 0.5187469795475473
+    },
+    {
+      "source": "1_lag0",
+      "destination": "4_lag0",
+      "weight": -1.8659344968442884
+    },
+    {
+      "source": "2_lag0",
+      "destination": "0_lag0",
+      "weight": -1.9126555309908664
+    },
+    {
+      "source": "2_lag0",
+      "destination": "1_lag0",
+      "weight": 1.005136976549841e-05
+    },
+    {
+      "source": "2_lag0",
+      "destination": "3_lag0",
+      "weight": -2.3695937631828092e-05
+    },
+    {
+      "source": "2_lag0",
+      "destination": "4_lag0",
+      "weight": -1.5465028588381484e-05
+    },
+    {
+      "source": "3_lag0",
+      "destination": "1_lag0",
+      "weight": 2.5045128146889884e-05
+    },
+    {
+      "source": "3_lag0",
+      "destination": "4_lag0",
+      "weight": 1.1573079212582191
+    },
+    {
+      "source": "4_lag0",
+      "destination": "1_lag0",
+      "weight": -4.127461220404429e-06
+    },
+    {
+      "source": "4_lag0",
+      "destination": "2_lag0",
+      "weight": -0.8316404503252743
+    },
+    {
+      "source": "4_lag0",
+      "destination": "3_lag0",
+      "weight": 9.406510364186206e-06
+    },
+    {
+      "source": "0_lag1",
+      "destination": "1_lag0",
+      "weight": 0.003943873127579134
+    },
+    {
+      "source": "0_lag1",
+      "destination": "2_lag0",
+      "weight": -0.13750550357520572
+    },
+    {
+      "source": "0_lag1",
+      "destination": "3_lag0",
+      "weight": -0.00930549202502706
+    },
+    {
+      "source": "0_lag1",
+      "destination": "4_lag0",
+      "weight": 0.011471822993705244
+    },
+    {
+      "source": "3_lag1",
+      "destination": "1_lag0",
+      "weight": 0.2802764178040134
+    },
+    {
+      "source": "3_lag1",
+      "destination": "2_lag0",
+      "weight": 0.00604795399317568
+    },
+    {
+      "source": "3_lag1",
+      "destination": "3_lag0",
+      "weight": -0.09684768948158896
+    },
+    {
+      "source": "4_lag1",
+      "destination": "1_lag0",
+      "weight": 0.013622570544738226
+    }
+  ],
+  "command": [
+    "C:\\Users\\bayer\\PycharmProjects\\CausalOpt\\.venv-dynotears\\Scripts\\python.exe",
+    "C:\\Users\\bayer\\PycharmProjects\\CausalOpt\\scripts\\baseline_workers\\run_dynotears.py",
+    "--input",
+    "C:\\Users\\bayer\\PycharmProjects\\CausalOpt\\.baseline_tmp\\dynotears-44bebb2fe150468cb8cdb50a88f66411\\input.npz",
+    "--config",
+    "C:\\Users\\bayer\\PycharmProjects\\CausalOpt\\.baseline_tmp\\dynotears-44bebb2fe150468cb8cdb50a88f66411\\config.json",
+    "--output",
+    "C:\\Users\\bayer\\PycharmProjects\\CausalOpt\\.baseline_tmp\\dynotears-44bebb2fe150468cb8cdb50a88f66411\\output.npz",
+    "--metadata",
+    "C:\\Users\\bayer\\PycharmProjects\\CausalOpt\\.baseline_tmp\\dynotears-44bebb2fe150468cb8cdb50a88f66411\\metadata.json"
+  ],
+  "stdout": "",
+  "stderr": "",
+  "wall_runtime_seconds": 6.253604500030633
+}

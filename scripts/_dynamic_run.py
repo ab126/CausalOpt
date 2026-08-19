@@ -64,10 +64,11 @@ def run_case(config_path,case,method="ours",output_dir="results",seed=None,smoke
                 from causal_opt.baselines.dynotears import fit_dynotears
                 result=fit_dynotears(data.X,p=cfg.p,**cfg.baseline)
                 metrics=dynamic_metrics(data.W0_true,data.W_lags_true,result.W0,result.W_lags,data.X,w0_threshold=0,wlag_threshold=0); metrics["runtime"]=result.runtime_seconds
-                _save_estimate(target/"estimate.npz",result); (target/"native_result.txt").write_text(repr(result.native_result))
+                _save_estimate(target/"estimate.npz",result); _write(target/"native_result.json",result.native_result); _write(target/"diagnostics.json",result.diagnostics)
             elif name=="lpcmci":
                 from causal_opt.baselines.lpcmci import fit_lpcmci
-                result=fit_lpcmci(data.X,tau_max=cfg.p,**cfg.baseline)
+                lpcmci_options={k:v for k,v in cfg.baseline.items() if k in {"pc_alpha"}}
+                result=fit_lpcmci(data.X,tau_max=cfg.p,**lpcmci_options)
                 c,l=_lpcmci_adjacencies(result.graph,cfg.p,cfg.d)
                 cm=support_metrics(data.W0_true,c,0); lm=support_metrics(data.W_lags_true,l,0)
                 legitimate=("precision","recall","f1","fdr","fpr","nnz")
@@ -78,14 +79,22 @@ def run_case(config_path,case,method="ours",output_dir="results",seed=None,smoke
                 np.savez_compressed(target/"native_result.npz",**{k:v for k,v in result.native_result.items() if isinstance(v,np.ndarray)}); _write(target/"native_result.json",result.native_result)
             elif name=="liegeois":
                 options=cfg.baseline.copy(); options.pop("pc_alpha",None)
-                required={"matlab_entrypoint","implementation_dir"}
-                if not required.issubset(options): raise RuntimeError("Liégeois unavailable: configure matlab_entrypoint and implementation_dir")
                 from causal_opt.baselines.liegeois import fit_liegeois
-                result=fit_liegeois(data.X,**options); metrics={"runtime":result.runtime_seconds,"native_only":True}; _save_estimate(target/"estimate.npz",result)
+                result=fit_liegeois(data.X,p=cfg.p,**options)
+                xs=result.native_result["x_sol"]
+                metrics={"runtime":result.runtime_seconds,"native_only":True,
+                  "estimated_latent_dimension":result.diagnostics["estimated_latent_dimension"],
+                  "native_shapes":result.diagnostics["native_shapes"],
+                  "sparse_nonzero":int(np.count_nonzero(xs["S"])),
+                  "low_rank_matrix_rank":int(np.linalg.matrix_rank(xs["L"])),
+                  "upstream_commit":result.diagnostics["upstream_commit"]}
+                np.savez_compressed(target/"native_result.npz",L=xs["L"],S=xs["S"],Omega=xs["Omega"],Delta=xs["Delta"],C=result.native_result["C"])
+                _write(target/"diagnostics.json",result.diagnostics)
             else: raise ValueError(f"unsupported method {name}")
             _write(target/"metrics.json",metrics); _write(target/"status.json",{"status":"ok"}); statuses[name]="ok"
         except Exception as exc:
             failure={"status":"unavailable" if isinstance(exc,(ImportError,RuntimeError)) else "failed","exception":repr(exc),"traceback":traceback.format_exc()}
+            if hasattr(exc,"diagnostics"): failure["diagnostics"]=exc.diagnostics
             _write(target/"status.json",failure); statuses[name]=failure["status"]
     status={"complete":True,"methods":statuses,"run_id":run_id}; _write(status_path,status)
     return folder,status

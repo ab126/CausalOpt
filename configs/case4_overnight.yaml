@@ -7,4 +7,4 @@ p: 1
 k: 2
 simulation: {burn_in: 500, lag_sparsity: 0.1, stability_radius: 0.95, noise_scale: 1.0, latent_process: iid, min_latent_children: 2}
 method: {lambda_0: 0.1, lambda_lag: 0.005, lambda_latent: 0.05, w0_threshold: 0.3, wlag_threshold: 0.05, random_state: 1}
-baseline: {pc_alpha: 0.05}
+baseline: {pc_alpha: 0.05, backend: matlab_subprocess, repo_path: external/SparseLowRankIdentification, lambda_value: 0.004, gamma: 1.25, maxiter: 1000}

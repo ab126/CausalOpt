@@ -9,5 +9,8 @@
 __pycache__/
 *.py[cod]
 /results/
+/.venv-dynotears/
+/external/SparseLowRankIdentification/
+/.baseline_tmp/
 
 

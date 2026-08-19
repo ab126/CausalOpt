@@ -1,0 +1,58 @@
+{
+  "edges": [
+    {
+      "source": "1_lag0",
+      "destination": "3_lag0",
+      "weight": 0.5325723526883533
+    },
+    {
+      "source": "1_lag0",
+      "destination": "4_lag0",
+      "weight": -1.8814127522308584
+    },
+    {
+      "source": "2_lag0",
+      "destination": "0_lag0",
+      "weight": -1.9116593376682696
+    },
+    {
+      "source": "3_lag0",
+      "destination": "4_lag0",
+      "weight": 1.1664021936818736
+    },
+    {
+      "source": "4_lag0",
+      "destination": "2_lag0",
+      "weight": -0.8268730539993071
+    },
+    {
+      "source": "3_lag1",
+      "destination": "1_lag0",
+      "weight": 0.31005745613118374
+    }
+  ],
+  "edge_source": [
+    "1_lag0",
+    "1_lag0",
+    "2_lag0",
+    "3_lag0",
+    "4_lag0",
+    "3_lag1"
+  ],
+  "edge_destination": [
+    "3_lag0",
+    "4_lag0",
+    "0_lag0",
+    "4_lag0",
+    "2_lag0",
+    "1_lag0"
+  ],
+  "edge_weight": [
+    0.5325723526883533,
+    -1.8814127522308584,
+    -1.9116593376682696,
+    1.1664021936818736,
+    -0.8268730539993071,
+    0.31005745613118374
+  ]
+}
