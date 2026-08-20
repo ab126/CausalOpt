@@ -13,4 +13,10 @@ __pycache__/
 /external/SparseLowRankIdentification/
 /.baseline_tmp/
 
+# Raw/local data
+*.zip
+/data/
+*.nii
+*.nii.gz
+
 

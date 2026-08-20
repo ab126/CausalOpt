@@ -9,6 +9,10 @@ import re
 import zipfile
 
 import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.patches import Ellipse, FancyArrowPatch
+from matplotlib.lines import Line2D
+
 from scipy.io import loadmat
 
 ROI_RE = re.compile(r"^Bladder Network 19\.cluster(\d{3})$")
@@ -265,3 +269,360 @@ def plot_key_edge_bootstrap_distributions(frame,delta_boot,path,terms=("PAG","In
         values=delta_boot[:,int(row.source_index),int(row.target_index)]; label=f"{row.source_name} -> {row.target_name}"; labels.append(label)
         ax.hist(values,bins=min(30,max(5,len(values)//2)),color="#8da0cb",alpha=.8); ax.axvline(0,color="black",lw=1); ax.axvline(row.delta_W_observed,color="#b2182b",lw=2,label="observed"); ax.axvline(row["ci_2.5"],color="#555",ls="--"); ax.axvline(row["ci_97.5"],color="#555",ls="--",label="95% CI"); ax.set_title(f"{label} (q={row.q_fdr:.3g})"); ax.legend(fontsize=8)
     fig.savefig(path,dpi=180,bbox_inches="tight"); plt.close(fig); return labels
+
+# Anatomical SDV difference plot
+BLADDER19_LABELS = (
+    "Cerebellum 1",
+    "Cerebellum 2",
+    "Cerebellum 3",
+    "DLPFC 1",
+    "DLPFC 2",
+    "Medial Frontal",
+    "PAG 1",
+    "PAG 2",
+    "PAG 3",
+    "PMC 1",
+    "PMC 2",
+    "SMA 1",
+    "SMA 2",
+    "dACC",
+    "IFG",
+    "L Insula",
+    "mPFC",
+    "R Insula",
+    "Thalamus",
+)
+
+def _draw_axial_brain_outline(ax):
+    """Draw a schematic axial brain boundary in MNI x-y space."""
+    brain = Ellipse(
+        (0, -12),
+        width=155,
+        height=185,
+        facecolor="0.97",
+        edgecolor="0.45",
+        linewidth=2.2,
+        zorder=0,
+    )
+    ax.add_patch(brain)
+
+    # Approximate interhemispheric fissure.
+    ax.plot(
+        [0, 0],
+        [-98, 72],
+        linestyle="--",
+        linewidth=0.8,
+        alpha=0.35,
+        zorder=1,
+    )
+
+def _draw_brain_outline(ax, view):
+    """Draw a simple schematic brain boundary for an MNI projection."""
+
+    if view == "coronal":
+        # x-z plane, viewed along y
+        brain = Ellipse(
+            (0, 15),
+            width=155,
+            height=125,
+            facecolor="0.97",
+            edgecolor="0.45",
+            linewidth=2.0,
+            zorder=0,
+        )
+        ax.add_patch(brain)
+
+        # Approximate interhemispheric fissure
+        ax.plot(
+            [0, 0], [-45, 78],
+            linestyle="--",
+            linewidth=0.8,
+            alpha=0.3,
+            zorder=1,
+        )
+
+    elif view == "sagittal":
+        # y-z plane, viewed along x
+        brain = Ellipse(
+            (-5, 15),
+            width=145,
+            height=125,
+            facecolor="0.97",
+            edgecolor="0.45",
+            linewidth=2.0,
+            zorder=0,
+        )
+        ax.add_patch(brain)
+
+    elif view == "axial":
+        # x-y plane, viewed along z
+        brain = Ellipse(
+            (0, -12),
+            width=155,
+            height=185,
+            facecolor="0.97",
+            edgecolor="0.45",
+            linewidth=2.0,
+            zorder=0,
+        )
+        ax.add_patch(brain)
+
+    else:
+        raise ValueError(
+            "view must be 'coronal', 'sagittal', or 'axial'"
+        )
+
+
+def _draw_directed_difference_edges(
+    ax,
+    delta_w,
+    x,
+    y,
+    min_abs_change=0.0,
+):
+    """Draw directed edges for a difference adjacency matrix."""
+    delta_w = np.asarray(delta_w, dtype=float)
+
+    edge_mask = np.abs(delta_w) > min_abs_change
+
+    if not np.any(edge_mask):
+        return
+
+    max_abs_delta = np.max(np.abs(delta_w[edge_mask]))
+
+    for i in range(delta_w.shape[0]):
+        for j in range(delta_w.shape[1]):
+            dw = delta_w[i, j]
+
+            if i == j or abs(dw) <= min_abs_change:
+                continue
+
+            # Red = relationship increases / becomes more positive in SDV.
+            # Blue = relationship decreases / becomes more negative in SDV.
+            edge_color = "tab:red" if dw > 0 else "tab:blue"
+
+            linewidth = 1.5 + 5.0 * abs(dw) / max_abs_delta
+
+            start = (x[i], y[i])
+            end = (x[j], y[j])
+
+            # Opposite curvature directions help separate overlapping arrows.
+            rad = 0.10 if i < j else -0.10
+
+            arrow = FancyArrowPatch(
+                start,
+                end,
+                arrowstyle="-|>",
+                mutation_scale=16,
+                linewidth=linewidth,
+                color=edge_color,
+                alpha=0.78,
+                connectionstyle=f"arc3,rad={rad}",
+                shrinkA=13,
+                shrinkB=13,
+                zorder=2,
+            )
+            ax.add_patch(arrow)
+
+
+def plot_anatomical_graph_difference(
+    W_control,
+    W_sdv,
+    roi_xyz,
+    roi_labels,
+    output_path=None,
+    *,
+    view="coronal",
+    min_abs_change=0.0,
+    title="SDV − Control",
+    figsize=(10, 9),
+    dpi=300,
+):
+    """
+    Plot SDV-Control directed-graph differences in an axial MNI projection.
+
+    Parameters
+    ----------
+    W_control : ndarray, shape (d, d)
+        Directed adjacency matrix for Control.
+
+    W_sdv : ndarray, shape (d, d)
+        Directed adjacency matrix for SDV.
+
+    roi_xyz : ndarray, shape (d, 3)
+        ROI MNI coordinates.
+
+    roi_labels : sequence of str
+        Anatomical labels corresponding to roi_xyz.
+
+    output_path : path-like or None
+        Optional path for saving the figure.
+
+    min_abs_change : float
+        Only plot edges with |W_sdv - W_control| above this value.
+
+    Returns
+    -------
+    fig, ax
+        Matplotlib figure and axis.
+    """
+    W_control = np.asarray(W_control, dtype=float)
+    W_sdv = np.asarray(W_sdv, dtype=float)
+    roi_xyz = np.asarray(roi_xyz, dtype=float)
+
+    if W_control.shape != W_sdv.shape:
+        raise ValueError("Control and SDV matrices must have identical shape.")
+
+    d = W_control.shape[0]
+
+    if W_control.shape != (d, d):
+        raise ValueError("W matrices must be square.")
+
+    if roi_xyz.shape != (d, 3):
+        raise ValueError(
+            f"roi_xyz must have shape ({d}, 3), got {roi_xyz.shape}."
+        )
+
+    if len(roi_labels) != d:
+        raise ValueError(
+            f"Expected {d} ROI labels, got {len(roi_labels)}."
+        )
+
+    delta_w = W_sdv - W_control
+
+    # Choose MNI projection
+    if view == "coronal":
+        # Looking along y-axis: left/right vs inferior/superior
+        x = roi_xyz[:, 0]
+        y = roi_xyz[:, 2]
+
+        xlabel = "MNI x (Left ←  → Right)"
+        ylabel = "MNI z"
+        xlim = (-82, 82)
+        ylim = (-50, 85)
+
+    elif view == "sagittal":
+        # Looking along x-axis: posterior/anterior vs inferior/superior
+        x = roi_xyz[:, 1]
+        y = roi_xyz[:, 2]
+
+        xlabel = "MNI y (Posterior ←  → Anterior)"
+        ylabel = "MNI z"
+        xlim = (-75, 75)
+        ylim = (-50, 85)
+
+    elif view == "axial":
+        x = roi_xyz[:, 0]
+        y = roi_xyz[:, 1]
+
+        xlabel = "MNI x (Left ←  → Right)"
+        ylabel = "MNI y"
+        xlim = (-82, 82)
+        ylim = (-75, 75)
+
+    else:
+        raise ValueError(
+            "view must be 'coronal', 'sagittal', or 'axial'"
+        )
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    _draw_brain_outline(ax, view)
+
+    _draw_directed_difference_edges(
+        ax,
+        delta_w,
+        x,
+        y,
+        min_abs_change=min_abs_change,
+    )
+
+    # ROI nodes.
+    ax.scatter(
+        x,
+        y,
+        s=260,
+        edgecolors="black",
+        linewidths=1.2,
+        zorder=3,
+    )
+
+    # Anatomical labels.
+    for idx, (xi, yi, label) in enumerate(zip(x, y, roi_labels)):
+        if xi < -10:
+            dx = -4
+            ha = "right"
+        else:
+            dx = 4
+            ha = "left"
+
+        ax.annotate(
+            f"{idx + 1}. {label}",
+            (xi, yi),
+            xytext=(dx, 3),
+            textcoords="offset points",
+            ha=ha,
+            va="bottom",
+            fontsize=9,
+            zorder=4,
+        )
+
+    ax.set_title(title, fontsize=16, pad=16)
+
+    ax.text(
+        -78,
+        -59,
+        "Arrow width ∝ |ΔW|",
+        fontsize=10,
+        va="top",
+    )
+    
+
+    legend_handles = [
+        Line2D(
+            [0], [0],
+            color="tab:red",
+            linewidth=3,
+            label="Increase in SDV",
+        ),
+        Line2D(
+            [0], [0],
+            color="tab:blue",
+            linewidth=3,
+            label="Decrease in SDV",
+        ),
+    ]
+
+    ax.legend(
+        handles=legend_handles,
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.10),
+        ncol=2,
+        frameon=False,
+        fontsize=10,
+    )
+
+    # Leave room below the axes for the legend.
+    fig.subplots_adjust(bottom=0.16)
+
+    ax.set_title(title, fontsize=15, pad=12)
+
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+
+    ax.set_xlim(*xlim)
+    ax.set_ylim(*ylim)
+    ax.set_aspect("equal")
+
+    ax.spines[["top", "right"]].set_visible(False)
+
+    fig.tight_layout()
+
+    if output_path is not None:
+        fig.savefig(
+            output_path,
+            dpi=dpi,
+            bbox_inches="tight",
+        )
+
+    return fig, ax
