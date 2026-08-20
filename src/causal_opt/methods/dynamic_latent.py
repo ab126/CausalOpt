@@ -11,6 +11,16 @@ def lagged_views(X,p):
     if X.ndim!=2 or not isinstance(p,(int,np.integer)) or p<1 or p>=len(X): raise ValueError("require 2-D X and 1 <= p < T")
     return X[p:],np.stack([X[p-t:len(X)-t] for t in range(1,p+1)])
 
+def multisubject_lagged_views(series,p,center=True):
+    """Create pooled lagged views without transitions between input series."""
+    arrays=[np.asarray(x,float) for x in series]
+    if not arrays or any(x.ndim!=2 for x in arrays): raise ValueError("series must contain 2-D arrays")
+    d=arrays[0].shape[1]
+    if any(x.shape[1]!=d or len(x)<=p or not np.isfinite(x).all() for x in arrays): raise ValueError("all series must be finite, have common columns, and length > p")
+    means=np.vstack(arrays).mean(0,keepdims=True) if center else np.zeros((1,d))
+    views=[lagged_views(x-means,p) for x in arrays]
+    return np.vstack([v[0] for v in views]),np.concatenate([v[1] for v in views],axis=1),means
+
 def _pack_parameters(W0p,W0n,Wlp,Wln,Z=None,L=None):
     parts=[np.asarray(a).ravel() for a in (W0p,W0n,Wlp,Wln)]
     if (Z is None)!=(L is None): raise ValueError("Z and L must both be present or absent")
@@ -48,9 +58,15 @@ def fit_dynamic_latent(X,p,k=0,lambda_0=.1,lambda_lag=.1,lambda_latent=.1,max_ou
  rho_init=1.,rho_max=1e16,rho_multiplier=10.,h_progress_ratio=.25,w0_threshold=.3,wlag_threshold=.3,
  initialization="svd_residual",W0_init=None,W_lags_init=None,random_state=None,center=True,return_raw=True,
  verbose=False,inner_max_iter=None,lambda_L=None,max_iter=None,w_threshold=None):
-    started=time.perf_counter(); X=np.asarray(X,float)
-    if X.ndim!=2 or X.shape[1]<=1 or len(X)<=2 or not np.isfinite(X).all(): raise ValueError("X must be a finite 2-D time series")
-    T,d=X.shape
+    started=time.perf_counter(); is_multi=isinstance(X,(list,tuple))
+    if is_multi:
+        raw=[np.asarray(x,float) for x in X]
+        if not raw: raise ValueError("X must contain at least one subject time series")
+        T=sum(map(len,raw)); d=raw[0].shape[1]
+    else:
+        X=np.asarray(X,float)
+        if X.ndim!=2 or X.shape[1]<=1 or len(X)<=2 or not np.isfinite(X).all(): raise ValueError("X must be a finite 2-D time series")
+        T,d=X.shape
     if not isinstance(p,(int,np.integer)) or p<1 or p>=T: raise ValueError("require 1 <= p < T")
     if not isinstance(k,(int,np.integer)) or k<0 or k>d: raise ValueError("k must be between 0 and d")
     if lambda_L is not None: lambda_latent=lambda_L
@@ -58,7 +74,11 @@ def fit_dynamic_latent(X,p,k=0,lambda_0=.1,lambda_lag=.1,lambda_latent=.1,max_ou
     if w_threshold is not None: w0_threshold=wlag_threshold=w_threshold
     if min(lambda_0,lambda_lag,lambda_latent,w0_threshold,wlag_threshold)<0: raise ValueError("penalties/thresholds must be nonnegative")
     if max_outer_iter<=0 or rho_init<=0 or rho_max<=0 or rho_multiplier<=1 or not 0<h_progress_ratio<1: raise ValueError("invalid optimizer controls")
-    means=X.mean(0,keepdims=True) if center else np.zeros((1,d)); Xc=X.copy()-means; X0,Xlags=lagged_views(Xc,p); m=len(X0)
+    if is_multi:
+        X0,Xlags,means=multisubject_lagged_views(raw,p,center=center)
+    else:
+        means=X.mean(0,keepdims=True) if center else np.zeros((1,d)); Xc=X.copy()-means; X0,Xlags=lagged_views(Xc,p)
+    m=len(X0)
     W0=np.zeros((d,d)) if W0_init is None else np.asarray(W0_init,float).copy()
     Wlags=np.zeros((p,d,d)) if W_lags_init is None else np.asarray(W_lags_init,float).copy()
     if W0.shape!=(d,d) or Wlags.shape!=(p,d,d) or not np.isfinite(W0).all() or not np.isfinite(Wlags).all(): raise ValueError("invalid initial matrices")
@@ -99,7 +119,7 @@ def fit_dynamic_latent(X,p,k=0,lambda_0=.1,lambda_lag=.1,lambda_latent=.1,max_ou
     if k and cn<=1e-10: warnings.append("latent_collapse")
     if k and np.linalg.matrix_rank(C)!=k: warnings.append("rank_mismatch")
     if k and not 1e-3<=balance<=1e3: warnings.append("factor_scale_imbalance")
-    diag={"objective":float(aug),"fit_loss":fit,"sparse_0_penalty":s0,"sparse_lag_penalty":sl,"latent_penalty":lat,"h_raw":float(h),"h_thresholded":float(ht),"rho":rho,"peak_rho":rho,"alpha":alpha,"outer_iterations":outer+1,"total_inner_iterations":total_nit,"total_function_evaluations":total_nfev,"optimizer_success":bool(sol.success),"optimizer_status":int(sol.status),"optimizer_message":str(sol.message),"gradient_norm":float(np.linalg.norm(sol.jac)),"history":history,"inner_attempt_history":attempts,"column_means":means.ravel(),"number_optimization_variables":v.size,"T":T,"d":d,"p":p,"k":k,"Z_fro_norm":zn,"L_fro_norm":ln,"C_fro_norm":cn,"factor_balance_ratio":balance,"effective_rank_C":int(np.linalg.matrix_rank(C)) if k else 0,"warnings":warnings}
+    diag={"objective":float(aug),"fit_loss":fit,"sparse_0_penalty":s0,"sparse_lag_penalty":sl,"latent_penalty":lat,"h_raw":float(h),"h_thresholded":float(ht),"rho":rho,"peak_rho":rho,"alpha":alpha,"outer_iterations":outer+1,"total_inner_iterations":total_nit,"total_function_evaluations":total_nfev,"optimizer_success":bool(sol.success),"optimizer_status":int(sol.status),"optimizer_message":str(sol.message),"gradient_norm":float(np.linalg.norm(sol.jac)),"history":history,"inner_attempt_history":attempts,"column_means":means.ravel(),"number_optimization_variables":v.size,"T":T,"dynamic_observations":m,"n_series":len(raw) if is_multi else 1,"d":d,"p":p,"k":k,"Z_fro_norm":zn,"L_fro_norm":ln,"C_fro_norm":cn,"factor_balance_ratio":balance,"effective_rank_C":int(np.linalg.matrix_rank(C)) if k else 0,"warnings":warnings}
     return EstimatorResult(W0=W0est,W_raw=W0raw if return_raw else None,W_lags=Wlagsest,W_lags_raw=Wlagsraw if return_raw else None,Z=Z,L=L,C=C,runtime_seconds=time.perf_counter()-started,diagnostics=diag)
 
 dynamic_latent=fit_dynamic_latent
