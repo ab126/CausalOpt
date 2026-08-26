@@ -5,9 +5,15 @@ import json
 from pathlib import Path
 import sys
 import numpy as np
+import os
 
-ROOT=Path(__file__).resolve().parents[1]
-sys.path.insert(0,str(ROOT/"src"))
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+DATA = ROOT.parent / "fmri_connectivity" / "data" / "mat_files" / "rs_sessions_r03_healthy"
+SESSION1 = Path(os.getenv("FMRI_SESSION1_ZIP", DATA / "roi_rs_sessions_Session1.zip"))
+SESSION2 = Path(os.getenv("FMRI_SESSION2_ZIP", DATA / "roi_rs_sessions_Session2.zip"))
+
 from causal_opt.fmri import (build_multisubject_lagged_data,build_static_fmri_matrix,
     compare_matrices,data_summary,latent_similarity,load_fmri_state_data,model_statistics,
     load_roi_display_names,plot_bootstrap_delta_significance,plot_bootstrap_edge_intervals,
@@ -24,7 +30,20 @@ from causal_opt.simulation.static_sem import EstimatorResult
 
 def parser():
     ap=argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("session1_zip",type=Path); ap.add_argument("session2_zip",type=Path)
+    ap.add_argument(
+        "session1_zip",
+        type=Path,
+        nargs="?",
+        default=SESSION1,
+        help=f"Session 1 ZIP (default: {SESSION1})",
+    )
+    ap.add_argument(
+        "session2_zip",
+        type=Path,
+        nargs="?",
+        default=SESSION2,
+        help=f"Session 2 ZIP (default: {SESSION2})",
+    )
     ap.add_argument("--output-dir",type=Path,default=Path("results/fmri_control_sdv")); ap.add_argument("--seed",type=int,default=1)
     ap.add_argument("--k",type=int,default=2); ap.add_argument("--p",type=int,default=1); ap.add_argument("--edge-threshold",type=float,default=.3)
     ap.add_argument("--lambda-w",type=float,default=.1); ap.add_argument("--lambda-0",type=float,default=.1); ap.add_argument("--lambda-lag",type=float,default=.05)

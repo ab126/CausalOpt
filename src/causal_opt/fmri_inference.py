@@ -9,6 +9,7 @@ import os
 import warnings
 
 import numpy as np
+from tqdm.auto import tqdm
 
 from .baselines.notears import fit_notears
 from .methods.static_latent import fit_static_latent
@@ -118,18 +119,42 @@ def paired_subject_bootstrap_case2(control,sdv,output_dir,reps=1000,seed=42,jobs
             rc=solver(pool_subject_draw(control.timeseries,draws[i]),**kwargs); rs=solver(pool_subject_draw(sdv.timeseries,draws[i]),**kwargs); h=float(kwargs.get("h_tol",1e-8)); oc=_converged(rc,h); os_=_converged(rs,h)
             return i,draws[i],oc,os_,rc.W_raw if oc and os_ else None,rs.W_raw if oc and os_ else None,{"control":rc.diagnostics,"sdv":rs.diagnostics},None
         except Exception as exc: return i,draws[i],False,False,None,None,{},repr(exc)
-    done=len(completed)
-    if jobs==1:
-        records=(serial_record(i) for i in todo)
-        for record in records:
-            _save_replicate(folder,record); done+=1
-            if done%checkpoint_every==0 or done==reps: print(f"bootstrap {done}/{reps}")
-    else:
-        with ProcessPoolExecutor(max_workers=jobs) as pool:
-            futures=[pool.submit(_fit_pair,i,draws[i],control.timeseries,sdv.timeseries,kwargs) for i in todo]
-            for future in as_completed(futures):
-                _save_replicate(folder,future.result()); done+=1
-                if done%checkpoint_every==0 or done==reps: print(f"bootstrap {done}/{reps}")
+    done = len(completed)
+
+    with tqdm(
+        total=reps,
+        initial=done,
+        desc="Case 2 paired bootstrap",
+        unit="rep",
+        dynamic_ncols=True,
+    ) as pbar:
+
+        if jobs == 1:
+            for i in todo:
+                record = serial_record(i)
+                _save_replicate(folder, record)
+                done += 1
+                pbar.update(1)
+
+        else:
+            with ProcessPoolExecutor(max_workers=jobs) as pool:
+                futures = [
+                    pool.submit(
+                        _fit_pair,
+                        i,
+                        draws[i],
+                        control.timeseries,
+                        sdv.timeseries,
+                        kwargs,
+                    )
+                    for i in todo
+                ]
+
+                for future in as_completed(futures):
+                    _save_replicate(folder, future.result())
+                    done += 1
+                    pbar.update(1)
+                    
     result=load_bootstrap_results(folder)
     if result["failure_rate"]>.2: warnings.warn(f"high bootstrap failure rate: {result['failure_rate']:.1%}",RuntimeWarning)
     return result
