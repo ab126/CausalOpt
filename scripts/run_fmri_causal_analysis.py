@@ -16,7 +16,7 @@ SESSION2 = Path(os.getenv("FMRI_SESSION2_ZIP", DATA / "roi_rs_sessions_Session2.
 
 from causal_opt.fmri import (build_multisubject_lagged_data,build_static_fmri_matrix,
     compare_matrices,data_summary,latent_similarity,load_fmri_state_data,model_statistics,
-    load_roi_display_names,plot_bootstrap_delta_significance,plot_bootstrap_edge_intervals,
+    load_roi_display_names,plot_bootstrap_edge_significance,plot_bootstrap_edge_intervals,
     plot_bootstrap_edge_stability,plot_graph_comparison,plot_matrix_comparison,
     plot_key_edge_bootstrap_distributions,plot_node_reorganization,plot_pag_comparison,plot_skeleton_comparison,
     plot_two_matrix_comparison,save_result,top_matrix_changes)
@@ -122,7 +122,7 @@ def main(argv=None):
             stats=compute_bootstrap_edge_statistics(rs.W_raw-rc.W_raw,boot["delta_W"]); stability=compute_edge_selection_stability(boot["W_control"],boot["W_sdv"],args.stability_thresholds)
             frame=edge_results_dataframe(display,rc.W_raw,rs.W_raw,stats,stability,args.edge_threshold); frame.to_csv(args.output_dir/"case2_bootstrap_edge_results.csv",index=False); frame[frame.fdr_significant].to_csv(args.output_dir/"case2_bootstrap_fdr_edges.csv",index=False)
             nodes=node_reorganization(rs.W_raw-rc.W_raw,display); nodes.to_csv(args.output_dir/"case2_node_reorganization.csv",index=False)
-            plot_bootstrap_delta_significance(rs.W_raw-rc.W_raw,stats,display,args.output_dir/"case2_bootstrap_delta_significance.png"); plot_bootstrap_edge_stability(stability,display,args.edge_threshold,args.output_dir/"case2_bootstrap_edge_stability.png"); plot_bootstrap_edge_intervals(frame,args.output_dir/"case2_bootstrap_edge_intervals.png"); plot_node_reorganization(nodes,args.output_dir/"case2_node_reorganization.png"); plot_key_edge_bootstrap_distributions(frame,boot["delta_W"],args.output_dir/"case2_bootstrap_key_edge_distributions.png")
+            plot_bootstrap_edge_significance(rs.W_raw-rc.W_raw,stats,display,args.output_dir/"case2_bootstrap_delta_significance.png", "Observed raw SDV - Control W"); plot_bootstrap_edge_stability(stability,display,args.edge_threshold,args.output_dir/"case2_bootstrap_edge_stability.png"); plot_bootstrap_edge_intervals(frame,args.output_dir/"case2_bootstrap_edge_intervals.png"); plot_node_reorganization(nodes,args.output_dir/"case2_node_reorganization.png"); plot_key_edge_bootstrap_distributions(frame,boot["delta_W"],args.output_dir/"case2_bootstrap_key_edge_distributions.png")
             summary["bootstrap"]={k:boot[k] for k in ("requested","completed","successful","failed","failure_rate")}; summary["bootstrap"]["fdr_supported_edges"]=int(frame.fdr_significant.sum()); _print("bootstrap summary",summary["bootstrap"])
     if not args.static_only:
         X0c,Xlc,_=build_multisubject_lagged_data(control,args.p); X0s,Xls,_=build_multisubject_lagged_data(sdv,args.p); _print("dynamic shapes",{"control_X0":X0c.shape,"control_Xlags":Xlc.shape,"sdv_X0":X0s.shape,"sdv_Xlags":Xls.shape})

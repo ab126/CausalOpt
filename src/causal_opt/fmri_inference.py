@@ -216,3 +216,49 @@ def compare_case2_structures(proposed,notears,names,threshold=.3,fci_endpoints=N
     if fci_endpoints is not None:
         skeleton=pag_skeleton(fci_endpoints).astype(bool); out["proposed_edges_with_fci_adjacency"]=labels(P&skeleton); out["proposed_edges_without_fci_adjacency"]=labels(P&~skeleton)
     return out
+
+# Significance testing
+def compute_bootstrap_nonzero_statistics(W_observed, W_boot, alpha=.05):
+    """Bootstrap inference for H0: W_ij = 0."""
+    observed = np.asarray(W_observed, float)
+    boot = np.asarray(W_boot, float)
+
+    if boot.ndim != 3 or boot.shape[1:] != observed.shape or len(boot) == 0:
+        raise ValueError(
+            "W_boot must contain at least one matrix matching W_observed"
+        )
+
+    low, high = np.percentile(
+        boot,
+        [100 * alpha / 2, 100 * (1 - alpha / 2)],
+        axis=0,
+    )
+
+    # Center bootstrap distribution around observed estimate.
+    deviation = boot - observed
+
+    p = (
+        1
+        + np.sum(
+            np.abs(deviation) >= np.abs(observed),
+            axis=0,
+        )
+    ) / (len(boot) + 1)
+
+    np.fill_diagonal(p, np.nan)
+
+    q = fdr_correct_edge_tests(p)
+
+    return {
+        "mean": boot.mean(0),
+        "median": np.median(boot, axis=0),
+        "ci_low": low,
+        "ci_high": high,
+        "p_boot": p,
+        "q_fdr": q,
+        "nominal_significant": p < alpha,
+        "fdr_significant": q < alpha,
+    }
+
+
+

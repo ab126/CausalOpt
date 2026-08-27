@@ -12,6 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse, FancyArrowPatch
 from matplotlib.lines import Line2D
+from matplotlib.colors import TwoSlopeNorm
 
 from scipy.io import loadmat
 
@@ -150,19 +151,178 @@ def plot_matrix_comparison(control,sdv,names,titles,path,zero_diagonal=False):
         im=ax.imshow(m,cmap="RdBu_r",vmin=-lim,vmax=lim); ax.set_title(title); ax.set_xticks(range(len(names)),names,rotation=90,fontsize=7); ax.set_yticks(range(len(names)),names,fontsize=7); fig.colorbar(im,ax=ax,shrink=.75)
     fig.savefig(path,dpi=180,bbox_inches="tight"); plt.close(fig)
 
+def plot_dynamic_matrix_comparison(
+    W0_control,
+    W0_sdv,
+    W1_control,
+    W1_sdv,
+    display_threshold,
+    roi_labels,
+    output_path,
+):
+    """
+    Plot contemporaneous W0 and lag-1 W1 comparisons as a 2 x 3 figure.
 
-def plot_graph_comparison(control,sdv,names,path,threshold=.3,titles=("Control causal DAG","SDV causal DAG")):
+    Rows:
+        1. W0: contemporaneous effects
+        2. W1: lag-1 effects
+
+    Columns:
+        1. Control
+        2. SDV
+        3. SDV - Control
+
+    Matrices use the convention W[source, target].
+    """
+
+    matrices = [W0_control, W0_sdv, W1_control, W1_sdv]
+    shapes = {np.asarray(matrix).shape for matrix in matrices}
+
+    if len(shapes) != 1:
+        raise ValueError(f"All matrices must have the same shape; got {shapes}.")
+
+    d = W0_control.shape[0]
+    if len(roi_labels) != d:
+        raise ValueError(
+            f"Expected {d} ROI labels, but received {len(roi_labels)}."
+        )
+
+    def threshold_for_display(matrix):
+        displayed = np.asarray(matrix, dtype=float).copy()
+        displayed[np.abs(displayed) < display_threshold] = 0.0
+        return displayed
+
+    row_data = []
+
+    for row_name, control, sdv in [
+        (r"Contemporaneous $W_0$", W0_control, W0_sdv),
+        (r"Lag-1 $W_1$", W1_control, W1_sdv),
+    ]:
+        control_display = threshold_for_display(control)
+        sdv_display = threshold_for_display(sdv)
+
+        # Compute the difference from the displayed state matrices.
+        difference_display = sdv_display - control_display
+
+        row_data.append(
+            (
+                row_name,
+                [
+                    control_display,
+                    sdv_display,
+                    difference_display,
+                ],
+            )
+        )
+
+    panel_titles = [
+        ["Control $W_0$", "SDV $W_0$", "SDV - Control $W_0$"],
+        ["Control $W_1$", "SDV $W_1$", "SDV - Control $W_1$"],
+    ]
+
+    fig, axes = plt.subplots(
+        2,
+        3,
+        figsize=(15, 10),
+        constrained_layout=True,
+    )
+
+    ticks = np.arange(d)
+
+    for row_index, (row_name, displayed_matrices) in enumerate(row_data):
+        # Use one scale within each row, but allow W0 and W1 to differ.
+        vmax = max(
+            np.max(np.abs(matrix))
+            for matrix in displayed_matrices
+        )
+        vmax = max(vmax, 1e-12)
+
+        norm = TwoSlopeNorm(vmin=-vmax, vcenter=0.0, vmax=vmax)
+
+        for column_index, matrix in enumerate(displayed_matrices):
+            ax = axes[row_index, column_index]
+
+            # Direct plotting means rows are sources and columns are targets.
+            image = ax.imshow(
+                matrix,
+                cmap="RdBu_r",
+                norm=norm,
+                interpolation="nearest",
+                aspect="equal",
+            )
+
+            ax.set_title(panel_titles[row_index][column_index], fontsize=13)
+            ax.set_xticks(ticks)
+            ax.set_yticks(ticks)
+
+            # Show target labels on the bottom row.
+            if row_index == 1:
+                ax.set_xticklabels(
+                    roi_labels,
+                    rotation=60,
+                    ha="right",
+                    fontsize=9,
+                )
+            else:
+                ax.set_xticklabels([])
+
+            # Show source labels only in the first column.
+            if column_index == 0:
+                ax.set_yticklabels(roi_labels, fontsize=9)
+            else:
+                ax.set_yticklabels([])
+
+            ax.tick_params(length=0)
+
+        colorbar = fig.colorbar(
+            image,
+            ax=axes[row_index, :].tolist(),
+            fraction=0.025,
+            pad=0.015,
+            shrink=0.90,
+        )
+        colorbar.set_label(f"{row_name} weight", fontsize=10)
+
+    fig.supxlabel("Target ROI", fontsize=12)
+    fig.supylabel("Source ROI", fontsize=12)
+    fig.suptitle(
+        "Dynamic directed-network comparison",
+        fontsize=15,
+    )
+
+    fig.savefig(
+        output_path,
+        dpi=300,
+        bbox_inches="tight",
+        facecolor="white",
+    )
+    plt.close(fig)
+
+
+def plot_graph_comparison(control,sdv,names,path,threshold=.3,titles=("Control causal DAG","SDV causal DAG"), significant_control=None,
+    significant_sdv=None):
     import matplotlib.pyplot as plt
+
     angles=np.linspace(0,2*np.pi,len(names),endpoint=False); positions=np.column_stack((np.cos(angles),np.sin(angles))); limit=max(np.max(np.abs(control)),np.max(np.abs(sdv)),1e-12)
     fig,axes=plt.subplots(1,2,figsize=(16,8),constrained_layout=True)
-    for ax,W,title in zip(axes,(control,sdv),titles):
+    for i, (ax,W,title) in enumerate(zip(axes,(control,sdv),titles)):
+        significant_mask = significant_control if i == 0 else significant_sdv
         ax.scatter(positions[:,0],positions[:,1],s=650,c="#d9eaf7",edgecolors="#333",zorder=3)
-        for i,(x,y) in enumerate(positions): ax.text(x,y,names[i],ha="center",va="center",fontsize=7,zorder=4)
+        for i,(x,y) in enumerate(positions): 
+            ax.text(x,y,names[i],ha="center",va="center",fontsize=7,zorder=4)
         for i,j in np.argwhere(np.abs(W)>=threshold):
-            color="#b2182b" if W[i,j]>0 else "#2166ac"; width=.5+3*abs(W[i,j])/limit
+            color="#b2182b" if W[i,j]>0 else "#2166ac";
+            # width=.5+3*abs(W[i,j])/limit
+            width=1.
+            alpha = 0.35
+            if significant_mask is not None and significant_mask[i, j]:
+                width = 3.0
+                alpha = 1.0
             start=positions[i]*.91; end=positions[j]*.91
             ax.annotate("",xy=end,xytext=start,arrowprops=dict(arrowstyle="-|>",color=color,lw=width,shrinkA=8,shrinkB=8,connectionstyle="arc3,rad=.08"),zorder=2)
         ax.set_title(title); ax.set_aspect("equal"); ax.set_xlim(-1.25,1.25); ax.set_ylim(-1.25,1.25); ax.axis("off")
+    fig.text(0.5,0.02,"Thick edge: bootstrap p_unc < 0.05\nThin edge: inferred edge, p_unc ≥ 0.05",ha="center",va="bottom",fontsize=10,
+             bbox=dict(facecolor="white",edgecolor="0.7",alpha=0.85,pad=0.4))
     fig.savefig(path,dpi=180,bbox_inches="tight"); plt.close(fig)
 
 
@@ -204,14 +364,24 @@ def plot_skeleton_comparison(control,sdv,names,path):
     fig.savefig(path,dpi=180,bbox_inches="tight"); plt.close(fig)
 
 
-def plot_bootstrap_delta_significance(delta,statistics,names,path):
+def plot_bootstrap_edge_significance(W,statistics,names,path, title="", alpha=0.05,):
     import matplotlib.pyplot as plt
-    limit=max(float(np.max(np.abs(delta))),1e-12); fig,ax=plt.subplots(figsize=(9,8),constrained_layout=True); im=ax.imshow(delta,cmap="RdBu_r",vmin=-limit,vmax=limit)
-    ci=np.argwhere(statistics["ci_excludes_zero"]&~statistics["fdr_significant"]); fdr=np.argwhere(statistics["fdr_significant"])
-    if len(ci): ax.scatter(ci[:,1],ci[:,0],marker="o",facecolors="none",edgecolors="black",s=35,label="95% CI excludes 0")
-    if len(fdr): ax.scatter(fdr[:,1],fdr[:,0],marker="*",c="#ffd700",edgecolors="black",s=80,label="FDR q < .05")
-    ax.set_title("Observed raw SDV - Control W"); ax.set_xticks(range(len(names)),names,rotation=90,fontsize=7); ax.set_yticks(range(len(names)),names,fontsize=7); fig.colorbar(im,ax=ax); 
-    if len(ci) or len(fdr): ax.legend(loc="upper left",bbox_to_anchor=(1.12,1))
+    limit=max(float(np.max(np.abs(W))),1e-12); fig,ax=plt.subplots(figsize=(9,8),constrained_layout=True); im=ax.imshow(W,cmap="RdBu_r",vmin=-limit,vmax=limit)
+    ci = None
+    #ci=np.argwhere(statistics["ci_excludes_zero"]&~statistics["fdr_significant"]); 
+    fdr=np.argwhere(statistics["fdr_significant"])
+    sig = np.argwhere(statistics["p_boot"] < alpha)
+    #if len(ci): ax.scatter(ci[:,1],ci[:,0],marker="o",facecolors="none",edgecolors="black",s=35,label="95% CI excludes 0")
+    if len(sig):
+        ax.scatter(sig[:,1],sig[:,0],marker="o",facecolors="none",edgecolors="black",s=35,label=f"p < {alpha} (Uncorrected)")
+    if len(fdr):
+        ax.scatter(fdr[:,1],fdr[:,0],marker="*",c="#ffd700",edgecolors="black",s=80,label=f"FDR q < {alpha}")
+    ax.set_title(title); ax.set_xticks(range(len(names)),names,rotation=90,fontsize=7); ax.set_yticks(range(len(names)),names,fontsize=7); fig.colorbar(im,ax=ax); 
+    if len(sig) or len(fdr):
+        ax.legend(
+            loc="upper left",
+            bbox_to_anchor=(1.12, 1),
+        )
     fig.savefig(path,dpi=180,bbox_inches="tight"); plt.close(fig)
 
 
