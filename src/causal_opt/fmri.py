@@ -542,18 +542,19 @@ def _draw_brain_outline(ax, view):
             "view must be 'coronal', 'sagittal', or 'axial'"
         )
 
-
 def _draw_directed_difference_edges(
     ax,
     delta_w,
     x,
     y,
     min_abs_change=0.0,
+    positive_color="tab:red",
+    negative_color="tab:blue",
 ):
-    """Draw directed edges for a difference adjacency matrix."""
     delta_w = np.asarray(delta_w, dtype=float)
 
     edge_mask = np.abs(delta_w) > min_abs_change
+    np.fill_diagonal(edge_mask, False)
 
     if not np.any(edge_mask):
         return
@@ -567,26 +568,26 @@ def _draw_directed_difference_edges(
             if i == j or abs(dw) <= min_abs_change:
                 continue
 
-            # Red = relationship increases / becomes more positive in SDV.
-            # Blue = relationship decreases / becomes more negative in SDV.
-            edge_color = "tab:red" if dw > 0 else "tab:blue"
+            edge_color = (
+                positive_color if dw > 0
+                else negative_color
+            )
 
             linewidth = 1.5 + 5.0 * abs(dw) / max_abs_delta
 
             start = (x[i], y[i])
             end = (x[j], y[j])
 
-            # Opposite curvature directions help separate overlapping arrows.
             rad = 0.10 if i < j else -0.10
 
             arrow = FancyArrowPatch(
                 start,
                 end,
                 arrowstyle="-|>",
-                mutation_scale=16,
+                mutation_scale=24,      # was 16
                 linewidth=linewidth,
                 color=edge_color,
-                alpha=0.78,
+                alpha=0.82,
                 connectionstyle=f"arc3,rad={rad}",
                 shrinkA=13,
                 shrinkB=13,
@@ -594,89 +595,53 @@ def _draw_directed_difference_edges(
             )
             ax.add_patch(arrow)
 
-
-def plot_anatomical_graph_difference(
-    W_control,
-    W_sdv,
+def plot_anatomical_directed_difference(
+    delta_w,
     roi_xyz,
     roi_labels,
     output_path=None,
     *,
     view="coronal",
     min_abs_change=0.0,
-    title="SDV − Control",
-    figsize=(10, 9),
+    title="Directed-network difference",
+    positive_color="tab:orange",
+    negative_color="tab:purple",
+    positive_label="Positive difference",
+    negative_label="Negative difference",
+    magnitude_label=r"Arrow width $\propto |\Delta W|$",
+    figsize=(12, 10),
     dpi=300,
 ):
-    """
-    Plot SDV-Control directed-graph differences in an axial MNI projection.
-
-    Parameters
-    ----------
-    W_control : ndarray, shape (d, d)
-        Directed adjacency matrix for Control.
-
-    W_sdv : ndarray, shape (d, d)
-        Directed adjacency matrix for SDV.
-
-    roi_xyz : ndarray, shape (d, 3)
-        ROI MNI coordinates.
-
-    roi_labels : sequence of str
-        Anatomical labels corresponding to roi_xyz.
-
-    output_path : path-like or None
-        Optional path for saving the figure.
-
-    min_abs_change : float
-        Only plot edges with |W_sdv - W_control| above this value.
-
-    Returns
-    -------
-    fig, ax
-        Matplotlib figure and axis.
-    """
-    W_control = np.asarray(W_control, dtype=float)
-    W_sdv = np.asarray(W_sdv, dtype=float)
+    delta_w = np.asarray(delta_w, dtype=float)
     roi_xyz = np.asarray(roi_xyz, dtype=float)
 
-    if W_control.shape != W_sdv.shape:
-        raise ValueError("Control and SDV matrices must have identical shape.")
+    d = delta_w.shape[0]
 
-    d = W_control.shape[0]
-
-    if W_control.shape != (d, d):
-        raise ValueError("W matrices must be square.")
+    if delta_w.shape != (d, d):
+        raise ValueError("delta_w must be square.")
 
     if roi_xyz.shape != (d, 3):
         raise ValueError(
-            f"roi_xyz must have shape ({d}, 3), got {roi_xyz.shape}."
+            f"roi_xyz must have shape ({d}, 3), got {roi_xyz.shape}"
         )
 
     if len(roi_labels) != d:
         raise ValueError(
-            f"Expected {d} ROI labels, got {len(roi_labels)}."
+            f"Expected {d} ROI labels, got {len(roi_labels)}"
         )
 
-    delta_w = W_sdv - W_control
-
-    # Choose MNI projection
     if view == "coronal":
-        # Looking along y-axis: left/right vs inferior/superior
         x = roi_xyz[:, 0]
         y = roi_xyz[:, 2]
-
-        xlabel = "MNI x (Left ←  → Right)"
+        xlabel = "MNI x (Left \u2190  \u2192 Right)"
         ylabel = "MNI z"
         xlim = (-82, 82)
         ylim = (-50, 85)
 
     elif view == "sagittal":
-        # Looking along x-axis: posterior/anterior vs inferior/superior
         x = roi_xyz[:, 1]
         y = roi_xyz[:, 2]
-
-        xlabel = "MNI y (Posterior ←  → Anterior)"
+        xlabel = "MNI y (Posterior \u2190  \u2192 Anterior)"
         ylabel = "MNI z"
         xlim = (-75, 75)
         ylim = (-50, 85)
@@ -684,8 +649,7 @@ def plot_anatomical_graph_difference(
     elif view == "axial":
         x = roi_xyz[:, 0]
         y = roi_xyz[:, 1]
-
-        xlabel = "MNI x (Left ←  → Right)"
+        xlabel = "MNI x (Left \u2190  \u2192 Right)"
         ylabel = "MNI y"
         xlim = (-82, 82)
         ylim = (-75, 75)
@@ -705,87 +669,80 @@ def plot_anatomical_graph_difference(
         x,
         y,
         min_abs_change=min_abs_change,
+        positive_color=positive_color,
+        negative_color=negative_color,
     )
 
-    # ROI nodes.
     ax.scatter(
         x,
         y,
-        s=260,
+        s=360,                 # was 260
         edgecolors="black",
-        linewidths=1.2,
+        linewidths=1.5,
         zorder=3,
     )
 
-    # Anatomical labels.
     for idx, (xi, yi, label) in enumerate(zip(x, y, roi_labels)):
         if xi < -10:
-            dx = -4
-            ha = "right"
+            dx, ha = -5, "right"
         else:
-            dx = 4
-            ha = "left"
+            dx, ha = 5, "left"
 
         ax.annotate(
             f"{idx + 1}. {label}",
             (xi, yi),
-            xytext=(dx, 3),
+            xytext=(dx, 4),
             textcoords="offset points",
             ha=ha,
             va="bottom",
-            fontsize=9,
+            fontsize=13.5,             # 9 * 1.5
             zorder=4,
         )
 
-    ax.set_title(title, fontsize=16, pad=16)
+    ax.set_title(title, fontsize=22, pad=18)
 
     ax.text(
-        -78,
-        -59,
-        "Arrow width ∝ |ΔW|",
-        fontsize=10,
+        xlim[0] + 4,
+        ylim[0] - 8,
+        magnitude_label,
+        fontsize=15,
         va="top",
     )
-    
 
     legend_handles = [
         Line2D(
             [0], [0],
-            color="tab:red",
-            linewidth=3,
-            label="Increase in SDV",
+            color=positive_color,
+            linewidth=4,
+            label=positive_label,
         ),
         Line2D(
             [0], [0],
-            color="tab:blue",
-            linewidth=3,
-            label="Decrease in SDV",
+            color=negative_color,
+            linewidth=4,
+            label=negative_label,
         ),
     ]
 
     ax.legend(
         handles=legend_handles,
         loc="upper center",
-        bbox_to_anchor=(0.5, -0.10),
+        bbox_to_anchor=(0.5, -0.11),
         ncol=2,
         frameon=False,
-        fontsize=10,
+        fontsize=15,
     )
 
-    # Leave room below the axes for the legend.
-    fig.subplots_adjust(bottom=0.16)
-
-    ax.set_title(title, fontsize=15, pad=12)
-
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
+    ax.set_xlabel(xlabel, fontsize=16)
+    ax.set_ylabel(ylabel, fontsize=16)
+    ax.tick_params(labelsize=13)
 
     ax.set_xlim(*xlim)
     ax.set_ylim(*ylim)
     ax.set_aspect("equal")
-
     ax.spines[["top", "right"]].set_visible(False)
 
+    fig.subplots_adjust(bottom=0.18)
     fig.tight_layout()
 
     if output_path is not None:
@@ -793,6 +750,477 @@ def plot_anatomical_graph_difference(
             output_path,
             dpi=dpi,
             bbox_inches="tight",
+            facecolor="white",
         )
 
     return fig, ax
+
+def plot_anatomical_graph_difference(
+    W_control,
+    W_sdv,
+    roi_xyz,
+    roi_labels,
+    output_path=None,
+    *,
+    view="coronal",
+    min_abs_change=0.0,
+    title="SDV − Control",
+    figsize=(12, 10),
+    dpi=300,
+):
+    return plot_anatomical_directed_difference(
+        np.asarray(W_sdv) - np.asarray(W_control),
+        roi_xyz,
+        roi_labels,
+        output_path,
+        view=view,
+        min_abs_change=min_abs_change,
+        title=title,
+        positive_color="tab:red",
+        negative_color="tab:blue",
+        positive_label="Increase in SDV",
+        negative_label="Decrease in SDV",
+        figsize=figsize,
+        dpi=dpi,
+    )
+
+
+# Sex Analysis
+def subset_conn_roi_data(data, subject_ids):
+    """Return a ConnROIData object restricted to selected subjects."""
+
+    subject_ids = tuple(subject_ids)
+
+    missing = [
+        subject for subject in subject_ids
+        if subject not in data.timeseries
+    ]
+    if missing:
+        raise ValueError(
+            f"subjects not present in {data.session}: {missing}"
+        )
+
+    return ConnROIData(
+        timeseries={
+            subject: data.timeseries[subject]
+            for subject in subject_ids
+        },
+        roi_names=data.roi_names,
+        roi_xyz=np.asarray(data.roi_xyz).copy(),
+        subject_ids=subject_ids,
+        session=data.session,
+    )
+
+def plot_sex_dag_comparison(
+    W_male_control,
+    W_male_sdv,
+    W_female_control,
+    W_female_sdv,
+    names,
+    output_path,
+    threshold=0.3,
+    *,
+    male_control_sig=None,
+    male_sdv_sig=None,
+    female_control_sig=None,
+    female_sdv_sig=None,
+    male_delta_sig=None,
+    female_delta_sig=None,
+    dpi=300,
+):
+    """Report-ready 2x3 sex/state directed-network comparison."""
+
+    matrices = [
+        [W_male_control, W_male_sdv, W_male_sdv - W_male_control],
+        [W_female_control, W_female_sdv, W_female_sdv - W_female_control],
+    ]
+
+    sigs = [
+        [male_control_sig, male_sdv_sig, male_delta_sig],
+        [female_control_sig, female_sdv_sig, female_delta_sig],
+    ]
+
+    titles = [
+        ["Male — Control", "Male — SDV", "Male — SDV − Control"],
+        ["Female — Control", "Female — SDV", "Female — SDV − Control"],
+    ]
+
+    angles = np.linspace(
+        0,
+        2 * np.pi,
+        len(names),
+        endpoint=False,
+    )
+    positions = np.column_stack(
+        (np.cos(angles), np.sin(angles))
+    )
+
+    fig, axes = plt.subplots(
+        2,
+        3,
+        figsize=(24, 15),
+        constrained_layout=True,
+    )
+
+    for row in range(2):
+        for col in range(3):
+            ax = axes[row, col]
+            W = np.asarray(matrices[row][col], float)
+            sig = sigs[row][col]
+
+            ax.scatter(
+                positions[:, 0],
+                positions[:, 1],
+                s=900,
+                facecolor="#d9eaf7",
+                edgecolors="#333333",
+                linewidths=1.3,
+                zorder=3,
+            )
+
+            for node, (x, y) in enumerate(positions):
+                ax.text(
+                    x,
+                    y,
+                    names[node],
+                    ha="center",
+                    va="center",
+                    fontsize=10.5,       # old 7 * 1.5
+                    zorder=4,
+                )
+
+            for i, j in np.argwhere(np.abs(W) >= threshold):
+                if i == j:
+                    continue
+
+                color = (
+                    "#b2182b" if W[i, j] > 0
+                    else "#2166ac"
+                )
+
+                significant = (
+                    sig is not None
+                    and bool(sig[i, j])
+                )
+
+                width = 4.0 if significant else 1.6
+                alpha = 1.0 if significant else 0.38
+
+                start = positions[i] * 0.90
+                end = positions[j] * 0.90
+
+                ax.annotate(
+                    "",
+                    xy=end,
+                    xytext=start,
+                    arrowprops=dict(
+                        arrowstyle="-|>",
+                        color=color,
+                        lw=width,
+                        alpha=alpha,
+                        shrinkA=10,
+                        shrinkB=10,
+                        connectionstyle="arc3,rad=.08",
+                    ),
+                    zorder=2,
+                )
+
+            ax.set_title(
+                titles[row][col],
+                fontsize=18,
+                pad=12,
+            )
+            ax.set_aspect("equal")
+            ax.set_xlim(-1.28, 1.28)
+            ax.set_ylim(-1.28, 1.28)
+            ax.axis("off")
+
+    fig.suptitle(
+        "Sex-Stratified Static Directed Networks and Bladder-State Reorganization",
+        fontsize=23,
+    )
+
+    legend = [
+        Line2D([0], [0], color="#b2182b", lw=3, label="Positive directed weight/change"),
+        Line2D([0], [0], color="#2166ac", lw=3, label="Negative directed weight/change"),
+        Line2D([0], [0], color="0.2", lw=4, label=r"Thick: bootstrap $p_{unc}<0.05$"),
+        Line2D([0], [0], color="0.2", lw=1.5, alpha=0.4, label=r"Thin: $p_{unc}\geq0.05$ or bootstrap not run"),
+    ]
+
+    fig.legend(
+        handles=legend,
+        loc="lower center",
+        ncol=4,
+        frameon=False,
+        fontsize=14,
+        bbox_to_anchor=(0.5, -0.005),
+    )
+
+    fig.savefig(
+        output_path,
+        dpi=dpi,
+        bbox_inches="tight",
+        facecolor="white",
+    )
+    plt.close(fig)
+
+def plot_sex_change_heatmaps(
+    delta_male,
+    delta_female,
+    interaction,
+    names,
+    output_path,
+    *,
+    male_stats=None,
+    female_stats=None,
+    interaction_stats=None,
+    alpha=0.05,
+    dpi=300,
+):
+    matrices = [
+        np.asarray(delta_male, float),
+        np.asarray(delta_female, float),
+        np.asarray(interaction, float),
+    ]
+
+    statistics = [
+        male_stats,
+        female_stats,
+        interaction_stats,
+    ]
+
+    titles = [
+        "Male: SDV − Control",
+        "Female: SDV − Control",
+        "Sex × State Interaction\nFemale ΔW − Male ΔW",
+    ]
+
+    state_limit = max(
+        np.max(np.abs(matrices[0])),
+        np.max(np.abs(matrices[1])),
+        1e-12,
+    )
+    interaction_limit = max(
+        np.max(np.abs(matrices[2])),
+        1e-12,
+    )
+
+    fig, axes = plt.subplots(
+        1,
+        3,
+        figsize=(24, 8.5),
+        constrained_layout=True,
+    )
+
+    for index, (ax, matrix, stats, title) in enumerate(
+        zip(axes, matrices, statistics, titles)
+    ):
+        limit = (
+            state_limit if index < 2
+            else interaction_limit
+        )
+
+        image = ax.imshow(
+            matrix,
+            cmap="RdBu_r",
+            vmin=-limit,
+            vmax=limit,
+            interpolation="nearest",
+        )
+
+        if stats is not None:
+            nominal = np.argwhere(
+                stats["p_boot"] < alpha
+            )
+            fdr = np.argwhere(
+                stats["q_fdr"] < alpha
+            )
+
+            if len(nominal):
+                ax.scatter(
+                    nominal[:, 1],
+                    nominal[:, 0],
+                    marker="o",
+                    facecolors="none",
+                    edgecolors="black",
+                    linewidths=1.8,
+                    s=75,
+                )
+
+            if len(fdr):
+                ax.scatter(
+                    fdr[:, 1],
+                    fdr[:, 0],
+                    marker="*",
+                    c="gold",
+                    edgecolors="black",
+                    linewidths=0.8,
+                    s=150,
+                )
+
+        ax.set_title(title, fontsize=19)
+        ax.set_xticks(range(len(names)))
+        ax.set_xticklabels(
+            names,
+            rotation=70,
+            ha="right",
+            fontsize=10.5,
+        )
+
+        if index == 0:
+            ax.set_yticks(range(len(names)))
+            ax.set_yticklabels(
+                names,
+                fontsize=10.5,
+            )
+            ax.set_ylabel("Source ROI", fontsize=16)
+        else:
+            ax.set_yticks(range(len(names)))
+            ax.set_yticklabels([])
+
+        ax.set_xlabel("Target ROI", fontsize=16)
+
+        cbar = fig.colorbar(
+            image,
+            ax=ax,
+            shrink=0.82,
+            pad=0.025,
+        )
+        cbar.ax.tick_params(labelsize=11)
+        cbar.set_label(
+            "Directed weight difference",
+            fontsize=13,
+        )
+
+    fig.suptitle(
+        "Sex-Stratified Bladder-State Changes in the Static Directed Network",
+        fontsize=23,
+    )
+
+    legend = [
+        Line2D(
+            [0], [0],
+            marker="o",
+            linestyle="None",
+            markerfacecolor="none",
+            markeredgecolor="black",
+            markeredgewidth=1.8,
+            markersize=9,
+            label=r"Uncorrected bootstrap $p<0.05$",
+        ),
+        Line2D(
+            [0], [0],
+            marker="*",
+            linestyle="None",
+            markerfacecolor="gold",
+            markeredgecolor="black",
+            markersize=13,
+            label=r"BH-FDR $q<0.05$",
+        ),
+    ]
+
+    if any(stats is not None for stats in statistics):
+        fig.legend(
+            handles=legend,
+            loc="lower center",
+            ncol=2,
+            frameon=False,
+            fontsize=14,
+            bbox_to_anchor=(0.5, -0.02),
+        )
+
+    fig.savefig(
+        output_path,
+        dpi=dpi,
+        bbox_inches="tight",
+        facecolor="white",
+    )
+    plt.close(fig)
+
+def plot_sex_node_reorganization(
+    male_nodes,
+    female_nodes,
+    output_path,
+    *,
+    dpi=300,
+):
+    import pandas as pd
+
+    male = male_nodes.set_index("roi")
+    female = female_nodes.set_index("roi")
+
+    names = list(
+        (
+            male["total_change"]
+            + female["total_change"]
+        )
+        .sort_values()
+        .index
+    )
+
+    y = np.arange(len(names))
+    male_values = male.loc[names, "total_change"].to_numpy()
+    female_values = female.loc[names, "total_change"].to_numpy()
+
+    fig, ax = plt.subplots(
+        figsize=(12, 10),
+        constrained_layout=True,
+    )
+
+    for yi, m, f in zip(y, male_values, female_values):
+        ax.plot(
+            [m, f],
+            [yi, yi],
+            color="0.75",
+            lw=2,
+            zorder=1,
+        )
+
+    ax.scatter(
+        male_values,
+        y,
+        s=90,
+        marker="o",
+        label="Male",
+        zorder=2,
+    )
+
+    ax.scatter(
+        female_values,
+        y,
+        s=100,
+        marker="D",
+        label="Female",
+        zorder=2,
+    )
+
+    ax.set_yticks(y)
+    ax.set_yticklabels(names, fontsize=13)
+
+    ax.set_xlabel(
+        r"Total ROI reorganization: "
+        r"$\sum |\Delta W_{in}|+\sum |\Delta W_{out}|$",
+        fontsize=16,
+    )
+
+    ax.set_title(
+        "ROI-Level Bladder-State Reorganization by Sex",
+        fontsize=21,
+        pad=14,
+    )
+
+    ax.tick_params(axis="x", labelsize=13)
+    ax.legend(fontsize=15, frameon=False)
+
+    ax.spines[["top", "right"]].set_visible(False)
+
+    fig.savefig(
+        output_path,
+        dpi=dpi,
+        bbox_inches="tight",
+        facecolor="white",
+    )
+    plt.close(fig)
+
+
+

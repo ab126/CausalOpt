@@ -260,5 +260,44 @@ def compute_bootstrap_nonzero_statistics(W_observed, W_boot, alpha=.05):
         "fdr_significant": q < alpha,
     }
 
+# Sex Analysis
+def combine_sex_interaction_bootstraps(male_boot, female_boot):
+    """Construct bootstrap samples of the sex x bladder-state interaction.
 
+    Interaction convention:
+        (Female SDV - Female Control)
+        -
+        (Male SDV - Male Control)
+
+    Only replicate indices valid in both independently resampled groups
+    are retained.
+    """
+
+    male_by_index = {
+        record["index"]: np.asarray(record["delta_W"], float)
+        for record in male_boot["records"]
+        if record["valid"]
+    }
+
+    female_by_index = {
+        record["index"]: np.asarray(record["delta_W"], float)
+        for record in female_boot["records"]
+        if record["valid"]
+    }
+
+    common_indices = sorted(
+        set(male_by_index) & set(female_by_index)
+    )
+
+    if not common_indices:
+        raise ValueError(
+            "No bootstrap replicate index was valid in both sex groups."
+        )
+
+    interaction_boot = np.stack([
+        female_by_index[index] - male_by_index[index]
+        for index in common_indices
+    ])
+
+    return interaction_boot, common_indices
 
