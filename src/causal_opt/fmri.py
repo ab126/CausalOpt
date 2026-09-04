@@ -15,6 +15,8 @@ from matplotlib.lines import Line2D
 from matplotlib.colors import TwoSlopeNorm
 
 from scipy.io import loadmat
+from functools import lru_cache
+import nibabel as nib
 
 ROI_RE = re.compile(r"^Bladder Network 19\.cluster(\d{3})$")
 FILE_RE = re.compile(r"ROI_Subject(\d+)_Session(\d{3})\.mat$", re.I)
@@ -397,12 +399,44 @@ def plot_bootstrap_edge_significance(W,statistics,names,path, title="", alpha=0.
         ax.scatter(sig[:,1],sig[:,0],marker="o",facecolors="none",edgecolors="black",s=30,label=f"p < {alpha} (Uncorrected)")
     if len(fdr):
         ax.scatter(fdr[:,1],fdr[:,0],marker="*",c="#ffd700",edgecolors="black",s=80,label=f"FDR q < {alpha}")
-    ax.set_title(title); ax.set_xticks(range(len(names)),names,rotation=90,fontsize=5); ax.set_yticks(range(len(names)),names,fontsize=5); fig.colorbar(im,ax=ax, shrink=0.6); 
+    ax.set_title(title)
+
+    ax.set_xticks(
+        range(len(names)),
+        names,
+        rotation=90,
+        fontsize=5,
+    )
+    ax.set_yticks(
+        range(len(names)),
+        names,
+        fontsize=5,
+    )
+
+    # Significance legend to the right of the heatmap.
     if len(sig) or len(fdr):
         ax.legend(
             loc="upper left",
-            bbox_to_anchor=(1.12, 1),
+            bbox_to_anchor=(1.10, 1.0),
+            borderaxespad=0.0,
         )
+
+    # Colorbar directly below the significance legend.
+    # Coordinates are relative to the heatmap axis:
+    # [left, bottom, width, height].
+    cax = ax.inset_axes([
+        1.14,   # horizontal position
+        0.08,   # bottom
+        0.07,   # width
+        0.72,   # height
+    ])
+
+    cbar = fig.colorbar(
+        im,
+        cax=cax,
+    )
+
+    cbar.ax.tick_params(labelsize=5)
     _scale_figure_fonts(fig)
     fig.savefig(path,dpi=180,bbox_inches="tight"); plt.close(fig)
 
@@ -514,7 +548,116 @@ def _draw_axial_brain_outline(ax):
         zorder=1,
     )
 
-def _draw_brain_outline(ax, view):
+@lru_cache(maxsize=1)
+def _load_mni_background():
+    """Load a canonical MNI152 anatomical template and brain mask."""
+    from nilearn.datasets import (
+        load_mni152_template,
+        load_mni152_brain_mask,
+    )
+
+    anat_img = nib.as_closest_canonical(
+        load_mni152_template(resolution=2)
+    )
+    mask_img = nib.as_closest_canonical(
+        load_mni152_brain_mask(resolution=2)
+    )
+
+    anat = np.asarray(anat_img.get_fdata(), dtype=float)
+    mask = np.asarray(mask_img.get_fdata(), dtype=float) > 0
+
+    return anat, mask, anat_img.affine
+
+
+def _axis_world_coords(length, affine, axis):
+    """World-coordinate values (mm) along one image axis."""
+    ijk = np.zeros((length, 3), dtype=float)
+    ijk[:, axis] = np.arange(length, dtype=float)
+    xyz = nib.affines.apply_affine(affine, ijk)
+    return xyz[:, axis]
+
+
+def _draw_mni_slice_background(ax, view, roi_xyz=None, alpha=0.16):
+    """
+    Draw a faint MNI152 anatomical slice and brain contour on the
+    given axes, using a slice near the ROI cloud.
+    """
+    anat, mask, affine = _load_mni_background()
+
+    nx, ny, nz = anat.shape
+    x_mm = _axis_world_coords(nx, affine, 0)
+    y_mm = _axis_world_coords(ny, affine, 1)
+    z_mm = _axis_world_coords(nz, affine, 2)
+
+    if roi_xyz is None:
+        roi_xyz = np.zeros((0, 3), dtype=float)
+    else:
+        roi_xyz = np.asarray(roi_xyz, dtype=float)
+
+    if view == "coronal":
+        # x-z slice at representative y
+        plane_mm = float(np.median(roi_xyz[:, 1])) if roi_xyz.size else 0.0
+        j = int(np.argmin(np.abs(y_mm - plane_mm)))
+
+        anat2d = anat[:, j, :].T
+        mask2d = mask[:, j, :].T.astype(float)
+        extent = [x_mm.min(), x_mm.max(), z_mm.min(), z_mm.max()]
+
+    elif view == "sagittal":
+        # y-z slice at representative x
+        plane_mm = float(np.median(roi_xyz[:, 0])) if roi_xyz.size else 0.0
+        i = int(np.argmin(np.abs(x_mm - plane_mm)))
+
+        anat2d = anat[i, :, :].T
+        mask2d = mask[i, :, :].T.astype(float)
+        extent = [y_mm.min(), y_mm.max(), z_mm.min(), z_mm.max()]
+
+    elif view == "axial":
+        # x-y slice at representative z
+        plane_mm = float(np.median(roi_xyz[:, 2])) if roi_xyz.size else 0.0
+        k = int(np.argmin(np.abs(z_mm - plane_mm)))
+
+        anat2d = anat[:, :, k].T
+        mask2d = mask[:, :, k].T.astype(float)
+        extent = [x_mm.min(), x_mm.max(), y_mm.min(), y_mm.max()]
+
+    else:
+        raise ValueError("view must be 'coronal', 'sagittal', or 'axial'")
+
+    # Only show anatomy inside the brain mask
+    anat2d = np.ma.masked_where(mask2d <= 0, anat2d)
+
+    ax.imshow(
+        anat2d,
+        cmap="gray",
+        extent=extent,
+        origin="lower",
+        alpha=alpha,
+        zorder=0,
+    )
+
+    ax.contour(
+        mask2d,
+        levels=[0.5],
+        colors=["0.45"],
+        linewidths=1.6,
+        extent=extent,
+        origin="lower",
+        zorder=1,
+    )
+
+    # Keep a subtle midline for coronal/axial
+    if view in {"coronal", "axial"}:
+        ax.axvline(
+            0,
+            linestyle="--",
+            linewidth=0.8,
+            alpha=0.22,
+            color="0.45",
+            zorder=1,
+        )
+
+def _draw_brain_outline_simple(ax, view):
     """Draw a simple schematic brain boundary for an MNI projection."""
 
     if view == "coronal":
@@ -554,6 +697,66 @@ def _draw_brain_outline(ax, view):
 
     elif view == "axial":
         # x-y plane, viewed along z
+        brain = Ellipse(
+            (0, -12),
+            width=155,
+            height=185,
+            facecolor="0.97",
+            edgecolor="0.45",
+            linewidth=2.0,
+            zorder=0,
+        )
+        ax.add_patch(brain)
+
+    else:
+        raise ValueError(
+            "view must be 'coronal', 'sagittal', or 'axial'"
+        )
+
+def _draw_brain_outline(ax, view, roi_xyz=None):
+    """Draw an MNI background when available, else fall back to a schematic outline."""
+    try:
+        _draw_mni_slice_background(ax, view, roi_xyz=roi_xyz)
+        return
+    except Exception as exc:
+        print(
+            f"[plot] MNI background unavailable ({exc}); "
+            f"falling back to schematic outline."
+        )
+
+    if view == "coronal":
+        brain = Ellipse(
+            (0, 15),
+            width=155,
+            height=125,
+            facecolor="0.97",
+            edgecolor="0.45",
+            linewidth=2.0,
+            zorder=0,
+        )
+        ax.add_patch(brain)
+
+        ax.plot(
+            [0, 0], [-45, 78],
+            linestyle="--",
+            linewidth=0.8,
+            alpha=0.3,
+            zorder=1,
+        )
+
+    elif view == "sagittal":
+        brain = Ellipse(
+            (-5, 15),
+            width=145,
+            height=125,
+            facecolor="0.97",
+            edgecolor="0.45",
+            linewidth=2.0,
+            zorder=0,
+        )
+        ax.add_patch(brain)
+
+    elif view == "axial":
         brain = Ellipse(
             (0, -12),
             width=155,
@@ -790,7 +993,8 @@ def plot_anatomical_directed_difference(
 
     fig, ax = plt.subplots(figsize=figsize)
 
-    _draw_brain_outline(ax, view)
+    # _draw_brain_outline_simple(ax, view)
+    _draw_brain_outline(ax, view, roi_xyz=roi_xyz)
 
     _draw_directed_difference_edges(
         ax,
