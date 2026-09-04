@@ -52,6 +52,7 @@ def main(argv=None):
 
     # Plots
     plot_bootstrap_edge_significance(delta,stats,names,out/"case2_bootstrap_delta_significance.png", "Observed raw SDV - Control W"); plot_bootstrap_edge_stability(stability,names,args.edge_threshold,out/"case2_bootstrap_edge_stability.png"); plot_bootstrap_edge_intervals(frame,out/"case2_bootstrap_edge_intervals.png"); plot_nominal_bootstrap_edge_intervals(frame,out/"case2_bootstrap_nominal_edge_intervals.png"); plot_key_edge_bootstrap_distributions(frame,boot["delta_W"],out/"case2_bootstrap_key_edge_distributions.png"); plot_node_reorganization(nodes,out/"case2_node_reorganization.png")
+
     plot_bootstrap_edge_significance(
         Wc,
         control_stats,

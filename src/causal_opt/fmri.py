@@ -19,6 +19,20 @@ from scipy.io import loadmat
 ROI_RE = re.compile(r"^Bladder Network 19\.cluster(\d{3})$")
 FILE_RE = re.compile(r"ROI_Subject(\d+)_Session(\d{3})\.mat$", re.I)
 
+PLOT_FONT_SCALE = 1.5
+
+def _scale_figure_fonts(fig, scale=PLOT_FONT_SCALE):
+    """Scale all text in a Matplotlib figure by a common factor."""
+    from matplotlib.text import Text
+
+    scale = float(scale)
+    if scale <= 0:
+        raise ValueError("font scale must be positive")
+
+    for text in fig.findobj(match=Text):
+        text.set_fontsize(text.get_fontsize() * scale)
+
+    return fig
 
 @dataclass(frozen=True)
 class ConnROIData:
@@ -149,7 +163,9 @@ def plot_matrix_comparison(control,sdv,names,titles,path,zero_diagonal=False):
     fig,axes=plt.subplots(1,3,figsize=(18,6),constrained_layout=True)
     for ax,m,title,lim in zip(axes,(a,b,delta),titles,(state,state,diff)):
         im=ax.imshow(m,cmap="RdBu_r",vmin=-lim,vmax=lim); ax.set_title(title); ax.set_xticks(range(len(names)),names,rotation=90,fontsize=7); ax.set_yticks(range(len(names)),names,fontsize=7); fig.colorbar(im,ax=ax,shrink=.75)
+    _scale_figure_fonts(fig)
     fig.savefig(path,dpi=180,bbox_inches="tight"); plt.close(fig)
+
 
 def plot_dynamic_matrix_comparison(
     W0_control,
@@ -289,6 +305,7 @@ def plot_dynamic_matrix_comparison(
         "Dynamic directed-network comparison",
         fontsize=15,
     )
+    _scale_figure_fonts(fig)
 
     fig.savefig(
         output_path,
@@ -323,6 +340,7 @@ def plot_graph_comparison(control,sdv,names,path,threshold=.3,titles=("Control c
         ax.set_title(title); ax.set_aspect("equal"); ax.set_xlim(-1.25,1.25); ax.set_ylim(-1.25,1.25); ax.axis("off")
     fig.text(0.5,0.02,"Thick edge: bootstrap p_unc < 0.05\nThin edge: inferred edge, p_unc ≥ 0.05",ha="center",va="bottom",fontsize=10,
              bbox=dict(facecolor="white",edgecolor="0.7",alpha=0.85,pad=0.4))
+    _scale_figure_fonts(fig)
     fig.savefig(path,dpi=180,bbox_inches="tight"); plt.close(fig)
 
 
@@ -331,6 +349,7 @@ def plot_two_matrix_comparison(left,right,names,titles,path):
     limit=max(float(np.max(np.abs([left,right]))),1e-12); fig,axes=plt.subplots(1,2,figsize=(12,6),constrained_layout=True)
     for ax,m,title in zip(axes,(left,right),titles):
         im=ax.imshow(m,cmap="RdBu_r",vmin=-limit,vmax=limit); ax.set_title(title); ax.set_xticks(range(len(names)),names,rotation=90,fontsize=7); ax.set_yticks(range(len(names)),names,fontsize=7); fig.colorbar(im,ax=ax,shrink=.75)
+    _scale_figure_fonts(fig)
     fig.savefig(path,dpi=180,bbox_inches="tight"); plt.close(fig)
 
 
@@ -353,6 +372,7 @@ def plot_pag_comparison(control,sdv,names,path):
                     elif code==2: ax.annotate("",xy=point,xytext=point+direction*.09,arrowprops=dict(arrowstyle="-|>",color="#222",lw=1),zorder=2)
                     elif code==1: ax.plot([point[0]-unit[1]*.025,point[0]+unit[1]*.025],[point[1]+unit[0]*.025,point[1]-unit[0]*.025],color="#222",lw=1.5,zorder=2)
         ax.set_title(title); ax.set_aspect("equal"); ax.set_xlim(-1.25,1.25); ax.set_ylim(-1.25,1.25); ax.axis("off")
+    _scale_figure_fonts(fig)
     fig.savefig(path,dpi=180,bbox_inches="tight"); plt.close(fig)
 
 
@@ -361,6 +381,7 @@ def plot_skeleton_comparison(control,sdv,names,path):
     fig,axes=plt.subplots(1,2,figsize=(12,6),constrained_layout=True)
     for ax,m,title in zip(axes,(control,sdv),("FCI Control adjacency","FCI SDV adjacency")):
         im=ax.imshow(m,cmap="Greys",vmin=0,vmax=1); ax.set_title(title); ax.set_xticks(range(len(names)),names,rotation=90,fontsize=7); ax.set_yticks(range(len(names)),names,fontsize=7)
+    _scale_figure_fonts(fig)
     fig.savefig(path,dpi=180,bbox_inches="tight"); plt.close(fig)
 
 
@@ -373,15 +394,16 @@ def plot_bootstrap_edge_significance(W,statistics,names,path, title="", alpha=0.
     sig = np.argwhere(statistics["p_boot"] < alpha)
     #if len(ci): ax.scatter(ci[:,1],ci[:,0],marker="o",facecolors="none",edgecolors="black",s=35,label="95% CI excludes 0")
     if len(sig):
-        ax.scatter(sig[:,1],sig[:,0],marker="o",facecolors="none",edgecolors="black",s=35,label=f"p < {alpha} (Uncorrected)")
+        ax.scatter(sig[:,1],sig[:,0],marker="o",facecolors="none",edgecolors="black",s=30,label=f"p < {alpha} (Uncorrected)")
     if len(fdr):
         ax.scatter(fdr[:,1],fdr[:,0],marker="*",c="#ffd700",edgecolors="black",s=80,label=f"FDR q < {alpha}")
-    ax.set_title(title); ax.set_xticks(range(len(names)),names,rotation=90,fontsize=7); ax.set_yticks(range(len(names)),names,fontsize=7); fig.colorbar(im,ax=ax); 
+    ax.set_title(title); ax.set_xticks(range(len(names)),names,rotation=90,fontsize=5); ax.set_yticks(range(len(names)),names,fontsize=5); fig.colorbar(im,ax=ax, shrink=0.6); 
     if len(sig) or len(fdr):
         ax.legend(
             loc="upper left",
             bbox_to_anchor=(1.12, 1),
         )
+    _scale_figure_fonts(fig)
     fig.savefig(path,dpi=180,bbox_inches="tight"); plt.close(fig)
 
 
@@ -390,6 +412,7 @@ def plot_bootstrap_edge_stability(stability,names,threshold,path):
     values=stability["thresholds"][float(threshold)]; fig,axes=plt.subplots(1,2,figsize=(12,6),constrained_layout=True)
     for ax,key,title in zip(axes,("control","sdv"),("Control edge-selection probability","SDV edge-selection probability")):
         im=ax.imshow(values[key],cmap="viridis",vmin=0,vmax=1); ax.set_title(f"{title} (|W| > {threshold:g})"); ax.set_xticks(range(len(names)),names,rotation=90,fontsize=7); ax.set_yticks(range(len(names)),names,fontsize=7); fig.colorbar(im,ax=ax)
+    _scale_figure_fonts(fig)
     fig.savefig(path,dpi=180,bbox_inches="tight"); plt.close(fig)
 
 
@@ -401,6 +424,7 @@ def plot_bootstrap_edge_intervals(frame,path,top_n=15):
     selected=selected.iloc[::-1]; labels=[f"{r.source_name} -> {r.target_name}  (q={r.q_fdr:.3g})" for r in selected.itertuples()]
     y=np.arange(len(selected)); x=selected.delta_W_observed.to_numpy(); lo=x-selected["ci_2.5"].to_numpy(); hi=selected["ci_97.5"].to_numpy()-x
     fig,ax=plt.subplots(figsize=(11,max(5,.42*len(selected))),constrained_layout=True); ax.errorbar(x,y,xerr=np.vstack((lo,hi)),fmt="o",color="#2166ac",ecolor="#555",capsize=3); ax.axvline(0,color="black",lw=1); ax.set_yticks(y,labels); ax.set_xlabel("Observed SDV - Control raw W (95% percentile CI)"); ax.set_title("Strongest directed edge differences")
+    _scale_figure_fonts(fig)
     fig.savefig(path,dpi=180,bbox_inches="tight"); plt.close(fig)
 
 
@@ -419,12 +443,15 @@ def plot_nominal_bootstrap_edge_intervals(frame,path,focus_source="L Insula",foc
         ax.hlines(y,row["ci_2.5"],row["ci_97.5"],color=color,lw=2); ax.plot(row.delta_W_observed,y,marker=marker,color=color,markersize=7)
     labels=[f"{r.source_name} -> {r.target_name}  p={r.p_boot:.3g}, q={r.q_fdr:.3g}" for r in selected.itertuples()]
     ax.set_yticks(range(len(selected)),labels); ax.axvline(0,color="black",lw=1); ax.set_xlabel("Observed SDV - Control raw W (95% percentile CI)"); ax.set_title("Nominal bootstrap edge differences (red = BH-FDR; diamond = L Insula -> PAG1)")
+    _scale_figure_fonts(fig)
     fig.savefig(path,dpi=180,bbox_inches="tight"); plt.close(fig); return labels
 
 
 def plot_node_reorganization(frame,path,top_n=12):
     import matplotlib.pyplot as plt
-    view=frame.head(top_n).iloc[::-1]; fig,ax=plt.subplots(figsize=(9,6),constrained_layout=True); ax.barh(view.roi,view.total_change,color="#4c78a8"); ax.set_xlabel("sum absolute incoming + outgoing change"); ax.set_title("State-dependent ROI reorganization (descriptive)"); fig.savefig(path,dpi=180,bbox_inches="tight"); plt.close(fig)
+    view=frame.head(top_n).iloc[::-1]; fig,ax=plt.subplots(figsize=(9,6),constrained_layout=True); ax.barh(view.roi,view.total_change,color="#4c78a8"); ax.set_xlabel("sum absolute incoming + outgoing change"); ax.set_title("State-dependent ROI reorganization (descriptive)"); 
+    _scale_figure_fonts(fig)
+    fig.savefig(path,dpi=180,bbox_inches="tight"); plt.close(fig)
 
 
 def plot_key_edge_bootstrap_distributions(frame,delta_boot,path,terms=("PAG","Insula","PMC","Motor Area","Cerebell"),max_edges=6):
@@ -438,6 +465,7 @@ def plot_key_edge_bootstrap_distributions(frame,delta_boot,path,terms=("PAG","In
     for ax,(_,row) in zip(axes.ravel(),selected.iterrows()):
         values=delta_boot[:,int(row.source_index),int(row.target_index)]; label=f"{row.source_name} -> {row.target_name}"; labels.append(label)
         ax.hist(values,bins=min(30,max(5,len(values)//2)),color="#8da0cb",alpha=.8); ax.axvline(0,color="black",lw=1); ax.axvline(row.delta_W_observed,color="#b2182b",lw=2,label="observed"); ax.axvline(row["ci_2.5"],color="#555",ls="--"); ax.axvline(row["ci_97.5"],color="#555",ls="--",label="95% CI"); ax.set_title(f"{label} (q={row.q_fdr:.3g})"); ax.legend(fontsize=8)
+    _scale_figure_fonts(fig)
     fig.savefig(path,dpi=180,bbox_inches="tight"); plt.close(fig); return labels
 
 # Anatomical SDV difference plot
@@ -550,50 +578,138 @@ def _draw_directed_difference_edges(
     min_abs_change=0.0,
     positive_color="tab:red",
     negative_color="tab:blue",
+    significant_mask=None,
 ):
+    """
+    Draw directed difference edges.
+
+    An edge is displayed if either:
+      - |delta_w| > min_abs_change, or
+      - significant_mask is True for that edge.
+
+    Nominally significant edges are marked with an asterisk.
+    """
     delta_w = np.asarray(delta_w, dtype=float)
 
-    edge_mask = np.abs(delta_w) > min_abs_change
+    if significant_mask is None:
+        significant_mask = np.zeros(delta_w.shape, dtype=bool)
+    else:
+        significant_mask = np.asarray(significant_mask, dtype=bool)
+
+        if significant_mask.shape != delta_w.shape:
+            raise ValueError(
+                "significant_mask must have the same shape as delta_w"
+            )
+
+    # Keep descriptively large edges AND all significant edges.
+    edge_mask = (
+        (np.abs(delta_w) > min_abs_change)
+        | significant_mask
+    )
     np.fill_diagonal(edge_mask, False)
 
     if not np.any(edge_mask):
         return
 
-    max_abs_delta = np.max(np.abs(delta_w[edge_mask]))
+    max_abs_delta = max(
+        float(np.max(np.abs(delta_w[edge_mask]))),
+        1e-12,
+    )
 
     for i in range(delta_w.shape[0]):
         for j in range(delta_w.shape[1]):
-            dw = delta_w[i, j]
 
-            if i == j or abs(dw) <= min_abs_change:
+            if not edge_mask[i, j]:
                 continue
+
+            dw = delta_w[i, j]
 
             edge_color = (
                 positive_color if dw > 0
                 else negative_color
             )
 
-            linewidth = 1.5 + 5.0 * abs(dw) / max_abs_delta
+            linewidth = (
+                1.5
+                + 5.0 * abs(dw) / max_abs_delta
+            )
 
-            start = (x[i], y[i])
-            end = (x[j], y[j])
+            start = np.asarray(
+                (x[i], y[i]),
+                dtype=float,
+            )
+            end = np.asarray(
+                (x[j], y[j]),
+                dtype=float,
+            )
 
             rad = 0.10 if i < j else -0.10
+
+            # Separate reciprocal edges so neither direction is hidden.
+            if edge_mask[j, i]:
+                direction = end - start
+                length = max(float(np.linalg.norm(direction)), 1e-12)
+                perpendicular = np.asarray(
+                    [-direction[1], direction[0]]
+                ) / length
+
+                offset = 2.5 * perpendicular
+                start = start + offset
+                end = end + offset
 
             arrow = FancyArrowPatch(
                 start,
                 end,
                 arrowstyle="-|>",
-                mutation_scale=24,      # was 16
+                mutation_scale=24,
                 linewidth=linewidth,
                 color=edge_color,
                 alpha=0.82,
                 connectionstyle=f"arc3,rad={rad}",
                 shrinkA=13,
                 shrinkB=13,
-                zorder=2,
+                zorder=2.6 if significant_mask[i, j] else 2,
             )
             ax.add_patch(arrow)
+
+            # Mark p_unc < 0.05 edges.
+            if significant_mask[i, j]:
+                midpoint = 0.5 * (start + end)
+
+                direction = end - start
+                length = max(
+                    float(np.linalg.norm(direction)),
+                    1e-12,
+                )
+
+                perpendicular = np.asarray(
+                    [-direction[1], direction[0]]
+                ) / length
+
+                # Actual midpoint of matplotlib's arc3 quadratic curve.
+                curve_midpoint = (
+                    midpoint
+                    - 0.5 * rad * length * perpendicular
+                )
+
+                # Small visual separation from the arrow itself.
+                star_position = (
+                    curve_midpoint
+                    - 1.25 * np.sign(rad) * perpendicular
+                )
+
+                ax.text(
+                    star_position[0],
+                    star_position[1],
+                    "*",
+                    ha="center",
+                    va="center",
+                    fontsize=18,
+                    fontweight="bold",
+                    color="black",
+                    zorder=5,
+                )
+
 
 def plot_anatomical_directed_difference(
     delta_w,
@@ -603,6 +719,7 @@ def plot_anatomical_directed_difference(
     *,
     view="coronal",
     min_abs_change=0.0,
+    significant_mask=None,
     title="Directed-network difference",
     positive_color="tab:orange",
     negative_color="tab:purple",
@@ -614,6 +731,18 @@ def plot_anatomical_directed_difference(
 ):
     delta_w = np.asarray(delta_w, dtype=float)
     roi_xyz = np.asarray(roi_xyz, dtype=float)
+
+    if significant_mask is not None:
+        significant_mask = np.asarray(
+            significant_mask,
+            dtype=bool,
+        )
+
+        if significant_mask.shape != delta_w.shape:
+            raise ValueError(
+                "significant_mask must have the same "
+                "shape as delta_w"
+            )
 
     d = delta_w.shape[0]
 
@@ -671,12 +800,13 @@ def plot_anatomical_directed_difference(
         min_abs_change=min_abs_change,
         positive_color=positive_color,
         negative_color=negative_color,
+        significant_mask=significant_mask,
     )
 
     ax.scatter(
         x,
         y,
-        s=360,                 # was 260
+        s=260,                 
         edgecolors="black",
         linewidths=1.5,
         zorder=3,
@@ -695,17 +825,17 @@ def plot_anatomical_directed_difference(
             textcoords="offset points",
             ha=ha,
             va="bottom",
-            fontsize=13.5,             # 9 * 1.5
+            fontsize=9,             
             zorder=4,
         )
 
-    ax.set_title(title, fontsize=22, pad=18)
+    ax.set_title(title, fontsize=18, pad=18)
 
     ax.text(
         xlim[0] + 4,
         ylim[0] - 8,
         magnitude_label,
-        fontsize=15,
+        fontsize=10,
         va="top",
     )
 
@@ -724,18 +854,34 @@ def plot_anatomical_directed_difference(
         ),
     ]
 
+    if (
+        significant_mask is not None
+        and np.any(significant_mask)
+    ):
+        legend_handles.append(
+            Line2D(
+                [0],
+                [0],
+                marker=r"$*$",
+                linestyle="None",
+                color="black",
+                markersize=12,
+                label=r"Uncorrected bootstrap $p<0.05$",
+            )
+        )
+
     ax.legend(
         handles=legend_handles,
         loc="upper center",
         bbox_to_anchor=(0.5, -0.11),
-        ncol=2,
+        ncol=len(legend_handles),
         frameon=False,
-        fontsize=15,
+        fontsize=10,
     )
 
-    ax.set_xlabel(xlabel, fontsize=16)
-    ax.set_ylabel(ylabel, fontsize=16)
-    ax.tick_params(labelsize=13)
+    ax.set_xlabel(xlabel, fontsize=12)
+    ax.set_ylabel(ylabel, fontsize=12)
+    ax.tick_params(labelsize=9)
 
     ax.set_xlim(*xlim)
     ax.set_ylim(*ylim)
@@ -743,6 +889,7 @@ def plot_anatomical_directed_difference(
     ax.spines[["top", "right"]].set_visible(False)
 
     fig.subplots_adjust(bottom=0.18)
+    _scale_figure_fonts(fig)
     fig.tight_layout()
 
     if output_path is not None:
@@ -755,6 +902,7 @@ def plot_anatomical_directed_difference(
 
     return fig, ax
 
+
 def plot_anatomical_graph_difference(
     W_control,
     W_sdv,
@@ -764,6 +912,7 @@ def plot_anatomical_graph_difference(
     *,
     view="coronal",
     min_abs_change=0.0,
+    significant_mask=None,
     title="SDV − Control",
     figsize=(12, 10),
     dpi=300,
@@ -775,6 +924,7 @@ def plot_anatomical_graph_difference(
         output_path,
         view=view,
         min_abs_change=min_abs_change,
+        significant_mask=significant_mask,
         title=title,
         positive_color="tab:red",
         negative_color="tab:blue",
