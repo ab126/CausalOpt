@@ -9,6 +9,7 @@ import re
 import zipfile
 
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse, FancyArrowPatch
 from matplotlib.lines import Line2D
@@ -104,6 +105,76 @@ def validate_paired_states(control,sdv):
 
 def load_fmri_state_data(session1_zip,session2_zip):
     control=load_conn_roi_zip(session1_zip,"001"); sdv=load_conn_roi_zip(session2_zip,"002"); validate_paired_states(control,sdv); return control,sdv
+
+
+def load_tsv_state(root, atlas_labels, session, session_code):
+    """ Read fMRIPrep derivatives ROI data. 
+    
+    E.g:
+        root = DERIVATIVES / "r03_healthy" / "rois" / "BN18"
+        atlas_labels = (
+                        FMRI_CONNECTIVITY_ROOT
+                        / "data"
+                        / "templates"
+                        / "ROIs"
+                        / "BN18_labels.json" 
+                        )
+    """
+
+    files = sorted(root.glob(f"sub-*/ses-{session}/*timeseries.tsv"))
+    if not files:
+        raise FileNotFoundError(f"No BN18 TSVs found for session {session!r}")
+
+    timeseries = {}
+    roi_names = None
+
+    for path in files:
+        match = re.search(r"sub-(\d+)", str(path))
+        subject = f"Subject{int(match.group(1)):03d}"
+
+        df = pd.read_csv(path, sep="\t")
+
+        names = tuple(df.columns)
+        X = df.to_numpy(dtype=float)
+
+        if roi_names is None:
+            roi_names = names
+        elif names != roi_names:
+            raise ValueError(f"ROI order differs in {path}")
+
+        if not np.isfinite(X).all():
+            raise ValueError(f"Non-finite values in {path}")
+
+        timeseries[subject] = X
+
+    # Get MNI coordinates in exactly the TSV ROI order
+    with open(atlas_labels, "r") as f:
+        labels = json.load(f)
+
+    coord_by_name = {
+        item["roi_name"]: np.asarray(item["centers_mni"][0], dtype=float)
+        for item in labels.values()
+    }
+
+    roi_xyz = np.vstack([
+        coord_by_name[name]
+        for name in roi_names
+    ])
+
+    subject_ids = tuple(
+        sorted(
+            timeseries,
+            key=lambda s: int(re.search(r"\d+", s).group()),
+        )
+    )
+
+    return ConnROIData(
+        timeseries={s: timeseries[s] for s in subject_ids},
+        roi_names=roi_names,
+        roi_xyz=roi_xyz,
+        subject_ids=subject_ids,
+        session=session_code,
+    )
 
 
 def build_static_fmri_matrix(data): return np.vstack([data.timeseries[s] for s in data.subject_ids])
