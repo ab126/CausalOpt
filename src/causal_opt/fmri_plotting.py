@@ -1032,6 +1032,7 @@ def plot_sex_dag_comparison(
     male_delta_sig=None,
     female_delta_sig=None,
     dpi=300,
+    fontsize_scale=1.2
 ):
     """Report-ready 2x3 sex/state directed-network comparison."""
 
@@ -1090,7 +1091,7 @@ def plot_sex_dag_comparison(
                     names[node],
                     ha="center",
                     va="center",
-                    fontsize=10.5,       # old 7 * 1.5
+                    fontsize=10.5 * fontsize_scale,       # old 7 * 1.5
                     zorder=4,
                 )
 
@@ -1132,7 +1133,7 @@ def plot_sex_dag_comparison(
 
             ax.set_title(
                 titles[row][col],
-                fontsize=18,
+                fontsize=18 * fontsize_scale,
                 pad=12,
             )
             ax.set_aspect("equal")
@@ -1142,7 +1143,7 @@ def plot_sex_dag_comparison(
 
     fig.suptitle(
         "Sex-Stratified Static Directed Networks and Bladder-State Reorganization",
-        fontsize=23,
+        fontsize=23 * fontsize_scale,
     )
 
     legend = [
@@ -1157,7 +1158,7 @@ def plot_sex_dag_comparison(
         loc="lower center",
         ncol=4,
         frameon=False,
-        fontsize=14,
+        fontsize=14 * fontsize_scale,
         bbox_to_anchor=(0.5, -0.005),
     )
 
@@ -1351,6 +1352,7 @@ def plot_sex_node_reorganization(
     *,
     node_statistics=None,
     dpi=300,
+    fontsize_scale=1.2
 ):
     """Plot node scores; optional ROI-keyed bootstrap p-values mark midpoints."""
 
@@ -1394,7 +1396,7 @@ def plot_sex_node_reorganization(
         if stars:
             ax.text(
                 (m + f) / 2, yi, stars, ha="center", va="center",
-                fontsize=16, fontweight="bold", zorder=4,
+                fontsize=16 * fontsize_scale, fontweight="bold", zorder=4,
                 bbox=dict(facecolor="white", edgecolor="none", pad=0.4),
             )
 
@@ -1417,27 +1419,27 @@ def plot_sex_node_reorganization(
     )
 
     ax.set_yticks(y)
-    ax.set_yticklabels(names, fontsize=13)
+    ax.set_yticklabels(names, fontsize=13 * fontsize_scale)
 
     ax.set_xlabel(
         r"Total ROI reorganization: "
         r"$\sum |\Delta W_{in}|+\sum |\Delta W_{out}|$",
-        fontsize=16,
+        fontsize=16 * fontsize_scale,
     )
 
     ax.set_title(
         "ROI-Level Bladder-State Reorganization by Sex",
-        fontsize=21,
+        fontsize=21 * fontsize_scale,
         pad=14,
     )
 
-    ax.tick_params(axis="x", labelsize=13)
-    ax.legend(fontsize=15, frameon=False)
+    ax.tick_params(axis="x", labelsize=13 * fontsize_scale)
+    ax.legend(fontsize=15 * fontsize_scale, frameon=False)
     if node_statistics is not None:
         fig.supxlabel(
             "Female − Male: two-sided, uncorrected bootstrap p-values\n"
             "* p < 0.05    ** p < 0.01    *** p < 0.001",
-            fontsize=11,
+            fontsize=11 * fontsize_scale,
         )
 
     ax.spines[["top", "right"]].set_visible(False)
