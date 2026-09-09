@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from textwrap import fill
+import re
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse, FancyArrowPatch
@@ -16,7 +17,7 @@ BLADDER19_LABELS = (
     "Cerebellum 3",
     "DLPFC 1",
     "DLPFC 2",
-    "Medial Frontal",
+    "MFG",
     "PAG 1",
     "PAG 2",
     "PAG 3",
@@ -36,6 +37,25 @@ BLADDER19_LABELS = (
 PLOT_FONT_SCALE = 1.5
 
 
+_ROI_ABBREVIATIONS = {
+    "Dorsolateral Prefrontal Cortex": "DLPFC",
+    "Medial Frontal Gyrus": "MFG",
+    "Supplementary Motor Area": "SMA",
+    "Dorsal Anterior Cingulate Cortex": "dACC",
+    "Inferior Frontal Gyrus": "IFG",
+    "Medial Prefrontal Cortex": "mPFC",
+}
+
+
+def abbreviate_roi_label(label):
+    """Shorten display text only, preserving ROI numbers and side labels."""
+    label = str(label)
+    for full, short in _ROI_ABBREVIATIONS.items():
+        pattern = r"\b" + r"\s+".join(full.split()) + r"\b"
+        label = re.sub(pattern, short, label, flags=re.IGNORECASE)
+    return label
+
+
 def _scale_figure_fonts(fig, scale=PLOT_FONT_SCALE):
     """Scale all text in a Matplotlib figure by a common factor."""
     from matplotlib.text import Text
@@ -51,6 +71,7 @@ def _scale_figure_fonts(fig, scale=PLOT_FONT_SCALE):
 
 
 def plot_matrix_comparison(control,sdv,names,titles,path,zero_diagonal=False):
+    names = [abbreviate_roi_label(label) for label in names]
     import matplotlib.pyplot as plt
     a=np.array(control,copy=True); b=np.array(sdv,copy=True)
     if zero_diagonal: np.fill_diagonal(a,0); np.fill_diagonal(b,0)
@@ -85,6 +106,7 @@ def plot_dynamic_matrix_comparison(
 
     Matrices use the convention W[source, target].
     """
+    roi_labels = [abbreviate_roi_label(label) for label in roi_labels]
 
     matrices = [W0_control, W0_sdv, W1_control, W1_sdv]
     shapes = {np.asarray(matrix).shape for matrix in matrices}
@@ -213,6 +235,7 @@ def plot_dynamic_matrix_comparison(
 
 def plot_graph_comparison(control,sdv,names,path,threshold=.3,titles=("Control causal DAG","SDV causal DAG"), significant_control=None,
     significant_sdv=None):
+    names = [abbreviate_roi_label(label) for label in names]
     import matplotlib.pyplot as plt
 
     angles=np.linspace(0,2*np.pi,len(names),endpoint=False); positions=np.column_stack((np.cos(angles),np.sin(angles))); limit=max(np.max(np.abs(control)),np.max(np.abs(sdv)),1e-12)
@@ -242,6 +265,7 @@ def plot_graph_comparison(control,sdv,names,path,threshold=.3,titles=("Control c
 
 
 def plot_two_matrix_comparison(left,right,names,titles,path):
+    names = [abbreviate_roi_label(label) for label in names]
     import matplotlib.pyplot as plt
     limit=max(float(np.max(np.abs([left,right]))),1e-12); fig,axes=plt.subplots(1,2,figsize=(12,6),constrained_layout=True)
     for ax,m,title in zip(axes,(left,right),titles):
@@ -252,6 +276,7 @@ def plot_two_matrix_comparison(left,right,names,titles,path):
 
 def plot_pag_comparison(control,sdv,names,path):
     """Plot endpoint-coded PAGs; tail, arrow, and circle endpoints remain distinct."""
+    names = [abbreviate_roi_label(label) for label in names]
     import matplotlib.pyplot as plt
     angles=np.linspace(0,2*np.pi,len(names),endpoint=False); pos=np.column_stack((np.cos(angles),np.sin(angles)))
     fig,axes=plt.subplots(1,2,figsize=(16,8),constrained_layout=True)
@@ -274,6 +299,7 @@ def plot_pag_comparison(control,sdv,names,path):
 
 
 def plot_skeleton_comparison(control,sdv,names,path):
+    names = [abbreviate_roi_label(label) for label in names]
     import matplotlib.pyplot as plt
     fig,axes=plt.subplots(1,2,figsize=(12,6),constrained_layout=True)
     for ax,m,title in zip(axes,(control,sdv),("FCI Control adjacency","FCI SDV adjacency")):
@@ -283,6 +309,7 @@ def plot_skeleton_comparison(control,sdv,names,path):
 
 
 def plot_bootstrap_edge_significance(W,statistics,names,path, title="", alpha=0.05,):
+    names = [abbreviate_roi_label(label) for label in names]
     import matplotlib.pyplot as plt
     limit=max(float(np.max(np.abs(W))),1e-12); fig,ax=plt.subplots(figsize=(9,8),constrained_layout=True); im=ax.imshow(W,cmap="RdBu_r",vmin=-limit,vmax=limit)
     ci = None
@@ -337,6 +364,7 @@ def plot_bootstrap_edge_significance(W,statistics,names,path, title="", alpha=0.
 
 
 def plot_bootstrap_edge_stability(stability,names,threshold,path):
+    names = [abbreviate_roi_label(label) for label in names]
     import matplotlib.pyplot as plt
     values=stability["thresholds"][float(threshold)]; fig,axes=plt.subplots(1,2,figsize=(12,6),constrained_layout=True)
     for ax,key,title in zip(axes,("control","sdv"),("Control edge-selection probability","SDV edge-selection probability")):
@@ -350,7 +378,7 @@ def plot_bootstrap_edge_intervals(frame,path,top_n=15):
     selected=frame[frame.fdr_significant].copy()
     if selected.empty: selected=frame.iloc[np.argsort(np.abs(frame.delta_W_observed.to_numpy()))[::-1][:top_n]].copy()
     else: selected=selected.iloc[:top_n]
-    selected=selected.iloc[::-1]; labels=[f"{r.source_name} -> {r.target_name}  (q={r.q_fdr:.3g})" for r in selected.itertuples()]
+    selected=selected.iloc[::-1]; labels=[f"{abbreviate_roi_label(r.source_name)} -> {abbreviate_roi_label(r.target_name)}  (q={r.q_fdr:.3g})" for r in selected.itertuples()]
     y=np.arange(len(selected)); x=selected.delta_W_observed.to_numpy(); lo=x-selected["ci_2.5"].to_numpy(); hi=selected["ci_97.5"].to_numpy()-x
     fig,ax=plt.subplots(figsize=(11,max(5,.42*len(selected))),constrained_layout=True); ax.errorbar(x,y,xerr=np.vstack((lo,hi)),fmt="o",color="#2166ac",ecolor="#555",capsize=3); ax.axvline(0,color="black",lw=1); ax.set_yticks(y,labels); ax.set_xlabel("Observed SDV - Control raw W (95% percentile CI)"); ax.set_title("Strongest directed edge differences")
     _scale_figure_fonts(fig)
@@ -370,7 +398,7 @@ def plot_nominal_bootstrap_edge_intervals(frame,path,focus_source="L Insula",foc
     for y,row in selected.iterrows():
         color="#b2182b" if bool(row.fdr_significant) else "#2166ac"; marker="D" if row.source_name==focus_source and row.target_name==focus_target else "o"
         ax.hlines(y,row["ci_2.5"],row["ci_97.5"],color=color,lw=2); ax.plot(row.delta_W_observed,y,marker=marker,color=color,markersize=7)
-    labels=[f"{r.source_name} -> {r.target_name}  p={r.p_boot:.3g}, q={r.q_fdr:.3g}" for r in selected.itertuples()]
+    labels=[f"{abbreviate_roi_label(r.source_name)} -> {abbreviate_roi_label(r.target_name)}  p={r.p_boot:.3g}, q={r.q_fdr:.3g}" for r in selected.itertuples()]
     ax.set_yticks(range(len(selected)),labels); ax.axvline(0,color="black",lw=1); ax.set_xlabel("Observed SDV - Control raw W (95% percentile CI)"); ax.set_title("Nominal bootstrap edge differences (red = BH-FDR; diamond = L Insula -> PAG1)")
     _scale_figure_fonts(fig)
     fig.savefig(path,dpi=180,bbox_inches="tight"); plt.close(fig); return labels
@@ -378,7 +406,7 @@ def plot_nominal_bootstrap_edge_intervals(frame,path,focus_source="L Insula",foc
 
 def plot_node_reorganization(frame,path,top_n=12):
     import matplotlib.pyplot as plt
-    view=frame.head(top_n).iloc[::-1]; fig,ax=plt.subplots(figsize=(9,6),constrained_layout=True); ax.barh(view.roi,view.total_change,color="#4c78a8"); ax.set_xlabel("sum absolute incoming + outgoing change"); ax.set_title("State-dependent ROI reorganization (descriptive)"); 
+    view=frame.head(top_n).iloc[::-1]; fig,ax=plt.subplots(figsize=(9,6),constrained_layout=True); ax.barh(view.roi.map(abbreviate_roi_label),view.total_change,color="#4c78a8"); ax.set_xlabel("sum absolute incoming + outgoing change"); ax.set_title("State-dependent ROI reorganization (descriptive)");
     _scale_figure_fonts(fig)
     fig.savefig(path,dpi=180,bbox_inches="tight"); plt.close(fig)
 
@@ -392,7 +420,7 @@ def plot_key_edge_bootstrap_distributions(frame,delta_boot,path,terms=("PAG","In
     fig,axes=plt.subplots(len(selected),1,figsize=(9,2.3*len(selected)),squeeze=False,constrained_layout=True)
     labels=[]
     for ax,(_,row) in zip(axes.ravel(),selected.iterrows()):
-        values=delta_boot[:,int(row.source_index),int(row.target_index)]; label=f"{row.source_name} -> {row.target_name}"; labels.append(label)
+        values=delta_boot[:,int(row.source_index),int(row.target_index)]; label=f"{abbreviate_roi_label(row.source_name)} -> {abbreviate_roi_label(row.target_name)}"; labels.append(label)
         ax.hist(values,bins=min(30,max(5,len(values)//2)),color="#8da0cb",alpha=.8); ax.axvline(0,color="black",lw=1); ax.axvline(row.delta_W_observed,color="#b2182b",lw=2,label="observed"); ax.axvline(row["ci_2.5"],color="#555",ls="--"); ax.axvline(row["ci_97.5"],color="#555",ls="--",label="95% CI"); ax.set_title(f"{label} (q={row.q_fdr:.3g})"); ax.legend(fontsize=8)
     _scale_figure_fonts(fig)
     fig.savefig(path,dpi=180,bbox_inches="tight"); plt.close(fig); return labels
@@ -809,6 +837,7 @@ def plot_anatomical_directed_difference(
     figsize=(12, 10),
     dpi=300,
 ):
+    roi_labels = [abbreviate_roi_label(label) for label in roi_labels]
     delta_w = np.asarray(delta_w, dtype=float)
     roi_xyz = np.asarray(roi_xyz, dtype=float)
 
@@ -1035,6 +1064,7 @@ def plot_sex_dag_comparison(
     fontsize_scale=1.2
 ):
     """Report-ready 2x3 sex/state directed-network comparison."""
+    names = [abbreviate_roi_label(label) for label in names]
 
     matrices = [
         [W_male_control, W_male_sdv, W_male_sdv - W_male_control],
@@ -1184,6 +1214,7 @@ def plot_sex_change_heatmaps(
     alpha=0.05,
     dpi=300,
 ):
+    names = [abbreviate_roi_label(label) for label in names]
     matrices = [
         np.asarray(delta_male, float),
         np.asarray(delta_female, float),
@@ -1419,7 +1450,7 @@ def plot_sex_node_reorganization(
     )
 
     ax.set_yticks(y)
-    ax.set_yticklabels(names, fontsize=13 * fontsize_scale)
+    ax.set_yticklabels([abbreviate_roi_label(name) for name in names], fontsize=13 * fontsize_scale)
 
     ax.set_xlabel(
         r"Total ROI reorganization: "
