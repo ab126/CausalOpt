@@ -83,6 +83,10 @@ Remove `--smoke` and pass `--config configs/case2.yaml` or `--config configs/cas
 
 The separate [`fmri_control_sdv_causal_analysis.ipynb`](notebooks/fmri_control_sdv_causal_analysis.ipynb) applies the static and dynamic latent methods to de-identified ROI-level fMRI time series. It is an application notebook, not one of the four synthetic cases. Users must supply authorized data locally; never commit archives, subject identifiers, acquisition metadata containing identifiers, or other patient information.
 
+The notebook loads BN18 derivatives from the sibling `fmri_connectivity` project (override its location with `FMRI_CONNECTIVITY_ROOT`). Its explicit `PAIRING = "intersection"` setting retains subjects present in both states and warns about exclusions. Use `"strict"` to require every subject in both states. Results go to `results/fmri_notebook_bn18`; older CONN BN19 inference caches are not reused.
+
+Reusable fMRI utilities live in `causal_opt.fmri_data` (loading, pairing, pooling), `causal_opt.fmri_plotting` (figures), and `causal_opt.fmri_reporting` (notebook reports). Existing imports from `causal_opt.fmri` remain supported. `load_paired_tsv_states(root, labels, pairing="strict")` loads `sub-*/ses-control/*timeseries.tsv` and `sub-*/ses-sdv/*timeseries.tsv`, requiring one file per subject/state and matching atlas metadata. Multiple runs must be selected upstream; they are never silently overwritten or concatenated.
+
 ## Citation
 
 There is not yet a DOI or archived release for this repository. Until one is available, cite the repository and the exact commit used:
