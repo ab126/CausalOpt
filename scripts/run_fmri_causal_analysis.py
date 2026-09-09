@@ -54,6 +54,7 @@ from causal_opt.fmri_inference import (compute_bootstrap_edge_statistics,
     node_reorganization,pag_skeleton,paired_subject_bootstrap_case2,
     # Sex analysis
     compute_bootstrap_nonzero_statistics,
+    compute_sex_node_statistics,
     combine_sex_interaction_bootstraps,)
 from causal_opt.methods.dynamic_latent import fit_dynamic_latent
 from causal_opt.methods.static_latent import fit_static_latent
@@ -751,10 +752,19 @@ def main(argv=None):
                 interaction_stats=interaction_stats,
             )
 
+            node_stats = None
+            if args.sex_bootstrap_reps:
+                node_stats = compute_sex_node_statistics(
+                    delta_male, delta_female, male_boot, female_boot, display,
+                )
+                node_stats.to_csv(
+                    sex_out / "sex_node_reorganization_statistics.csv", index=False,
+                )
             plot_sex_node_reorganization(
                 male_nodes,
                 female_nodes,
                 sex_out / "sex_node_reorganization.png",
+                node_statistics=node_stats,
             )
 
             plot_anatomical_directed_difference(

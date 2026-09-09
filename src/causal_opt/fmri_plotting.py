@@ -1349,9 +1349,10 @@ def plot_sex_node_reorganization(
     female_nodes,
     output_path,
     *,
+    node_statistics=None,
     dpi=300,
 ):
-    import pandas as pd
+    """Plot node scores; optional ROI-keyed bootstrap p-values mark midpoints."""
 
     male = male_nodes.set_index("roi")
     female = female_nodes.set_index("roi")
@@ -1368,13 +1369,20 @@ def plot_sex_node_reorganization(
     y = np.arange(len(names))
     male_values = male.loc[names, "total_change"].to_numpy()
     female_values = female.loc[names, "total_change"].to_numpy()
+    if node_statistics is not None:
+        stats = node_statistics.set_index("roi", verify_integrity=True)
+        p_values = stats.loc[names, "p_boot"].to_numpy(dtype=float)
+        if not np.isfinite(p_values).all() or np.any((p_values < 0) | (p_values > 1)):
+            raise ValueError("node p-values must be finite and between 0 and 1")
+    else:
+        p_values = np.ones(len(names))
 
     fig, ax = plt.subplots(
         figsize=(12, 10),
         constrained_layout=True,
     )
 
-    for yi, m, f in zip(y, male_values, female_values):
+    for yi, m, f, p in zip(y, male_values, female_values, p_values):
         ax.plot(
             [m, f],
             [yi, yi],
@@ -1382,6 +1390,13 @@ def plot_sex_node_reorganization(
             lw=2,
             zorder=1,
         )
+        stars = "***" if p < 0.001 else "**" if p < 0.01 else "*" if p < 0.05 else ""
+        if stars:
+            ax.text(
+                (m + f) / 2, yi, stars, ha="center", va="center",
+                fontsize=16, fontweight="bold", zorder=4,
+                bbox=dict(facecolor="white", edgecolor="none", pad=0.4),
+            )
 
     ax.scatter(
         male_values,
@@ -1418,6 +1433,12 @@ def plot_sex_node_reorganization(
 
     ax.tick_params(axis="x", labelsize=13)
     ax.legend(fontsize=15, frameon=False)
+    if node_statistics is not None:
+        fig.supxlabel(
+            "Female − Male: two-sided, uncorrected bootstrap p-values\n"
+            "* p < 0.05    ** p < 0.01    *** p < 0.001",
+            fontsize=11,
+        )
 
     ax.spines[["top", "right"]].set_visible(False)
 

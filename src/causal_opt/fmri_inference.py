@@ -261,6 +261,50 @@ def compute_bootstrap_nonzero_statistics(W_observed, W_boot, alpha=.05):
     }
 
 # Sex Analysis
+def compute_sex_node_statistics(delta_male, delta_female, male_boot, female_boot, names):
+    """Test female-minus-male total ROI change using saved subject bootstraps.
+
+    Compute the nonlinear node score separately in each group before subtracting.
+    Match valid replicate indices from independently resampled sex groups. The
+    two-sided centered bootstrap test uses the same +1 correction as edge tests;
+    bootstrap replicates are never treated as independent study participants.
+    """
+    import pandas as pd
+
+    names = list(names)
+    shape = (len(names), len(names))
+
+    def score(matrix):
+        matrix = np.asarray(matrix, float)
+        if matrix.shape != shape or not np.isfinite(matrix).all():
+            raise ValueError("node matrices must be finite and match ROI names")
+        absolute = np.abs(matrix)
+        return absolute.sum(axis=0) + absolute.sum(axis=1)
+
+    male = score(delta_male)
+    female = score(delta_female)
+    observed = female - male
+    groups = [
+        {r["index"]: r["delta_W"] for r in boot["records"] if r["valid"]}
+        for boot in (male_boot, female_boot)
+    ]
+    indices = sorted(set(groups[0]) & set(groups[1]))
+    if not indices:
+        raise ValueError("No bootstrap replicate index was valid in both sex groups")
+    samples = np.stack([score(groups[1][i]) - score(groups[0][i]) for i in indices])
+    p = (1 + (np.abs(samples - observed) >= np.abs(observed)).sum(axis=0)) / (len(samples) + 1)
+    order = np.argsort(p)
+    adjusted = p[order] * len(p) / np.arange(1, len(p) + 1)
+    q = np.empty_like(p)
+    q[order] = np.minimum(1, np.minimum.accumulate(adjusted[::-1])[::-1])
+    low, high = np.percentile(samples, [2.5, 97.5], axis=0)
+    return pd.DataFrame({
+        "roi": names, "male_total_change": male, "female_total_change": female,
+        "female_minus_male": observed, "ci_low": low, "ci_high": high,
+        "p_boot": p, "q_fdr": q, "valid_bootstrap_pairs": len(indices),
+    })
+
+
 def combine_sex_interaction_bootstraps(male_boot, female_boot):
     """Construct bootstrap samples of the sex x bladder-state interaction.
 
