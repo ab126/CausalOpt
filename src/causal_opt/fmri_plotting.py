@@ -233,10 +233,11 @@ def plot_dynamic_matrix_comparison(
     plt.close(fig)
 
 
-def plot_graph_comparison(control,sdv,names,path,threshold=.3,titles=("Control causal DAG","SDV causal DAG"), significant_control=None,
-    significant_sdv=None):
+def plot_graph_comparison(control,sdv,names,path,threshold=.3,
+                          titles=("Control causal DAG","SDV causal DAG"), significant_control=None, significant_sdv=None, fontsize_scale=1.2):
+    """Plot two directed graphs as a 1x2 figure, with optional significance highlighting."""
+    
     names = [abbreviate_roi_label(label) for label in names]
-    import matplotlib.pyplot as plt
 
     angles=np.linspace(0,2*np.pi,len(names),endpoint=False); positions=np.column_stack((np.cos(angles),np.sin(angles))); limit=max(np.max(np.abs(control)),np.max(np.abs(sdv)),1e-12)
     fig,axes=plt.subplots(1,2,figsize=(16,8),constrained_layout=True)
@@ -245,7 +246,7 @@ def plot_graph_comparison(control,sdv,names,path,threshold=.3,titles=("Control c
         ax.scatter(positions[:,0],positions[:,1],s=650,c="#d9eaf7",edgecolors="#333",zorder=3)
         for i,(x,y) in enumerate(positions):
             label = fill(names[i], width=14, break_long_words=False)
-            ax.text(x,y,label,ha="center",va="center",fontsize=6 if len(names[i]) > 14 else 7,zorder=4)
+            ax.text(x,y,label,ha="center",va="center",fontsize=8*fontsize_scale if len(names[i]) > 14 else 9*fontsize_scale, zorder=4)
         for i,j in np.argwhere(np.abs(W)>=threshold):
             color="#b2182b" if W[i,j]>0 else "#2166ac";
             # width=.5+3*abs(W[i,j])/limit
@@ -256,9 +257,9 @@ def plot_graph_comparison(control,sdv,names,path,threshold=.3,titles=("Control c
                 alpha = 1.0
             start=positions[i]*.91; end=positions[j]*.91
             ax.annotate("",xy=end,xytext=start,arrowprops=dict(arrowstyle="-|>",color=color,lw=width,shrinkA=8,shrinkB=8,connectionstyle="arc3,rad=.08"),zorder=2)
-        ax.set_title(title); ax.set_aspect("equal"); ax.set_xlim(-1.25,1.25); ax.set_ylim(-1.25,1.25); ax.axis("off")
+        ax.set_title(title, fontsize=12 * fontsize_scale); ax.set_aspect("equal"); ax.set_xlim(-1.25,1.25); ax.set_ylim(-1.25,1.25); ax.axis("off")
     if significant_control is not None or significant_sdv is not None:
-        fig.text(0.5,0.02,"Thick edge: bootstrap p_unc < 0.05\nThin edge: inferred edge without nominal significance",ha="center",va="bottom",fontsize=10,
+        fig.text(0.5,0.02,"Thick edge: bootstrap p_unc < 0.05\nThin edge: inferred edge without nominal significance",ha="center",va="bottom",fontsize=10 * fontsize_scale,
                  bbox=dict(facecolor="white",edgecolor="0.7",alpha=0.85,pad=0.4))
     _scale_figure_fonts(fig)
     fig.savefig(path,dpi=180,bbox_inches="tight"); plt.close(fig)
@@ -404,11 +405,96 @@ def plot_nominal_bootstrap_edge_intervals(frame,path,focus_source="L Insula",foc
     fig.savefig(path,dpi=180,bbox_inches="tight"); plt.close(fig); return labels
 
 
-def plot_node_reorganization(frame,path,top_n=12):
-    import matplotlib.pyplot as plt
-    view=frame.head(top_n).iloc[::-1]; fig,ax=plt.subplots(figsize=(9,6),constrained_layout=True); ax.barh(view.roi.map(abbreviate_roi_label),view.total_change,color="#4c78a8"); ax.set_xlabel("sum absolute incoming + outgoing change"); ax.set_title("State-dependent ROI reorganization (descriptive)");
+def plot_node_reorganization(frame, path, top_n=12):
+    """Plot the top N ROIs with the largest total absolute weight change."""
+
+    view = (
+        frame.sort_values("total_change", ascending=False)
+        .head(top_n)
+        .iloc[::-1]
+        .copy()
+    )
+    if view.empty:
+        return
+
+    # Shorten display labels without changing the underlying ROI names.
+    replacements = {
+        "Dorsal Anterior Cingulate Cortex": "dACC",
+        "Dorsolateral Prefrontal Cortex": "DLPFC",
+        "Medial Prefrontal Cortex": "mPFC",
+        "Supplementary Motor Area": "SMA",
+        "Inferior Frontal Gyrus": "IFG",
+        "L Insula": "Left insula",
+        "R Insula": "Right insula",
+    }
+
+    def short_label(name):
+        for full, short in replacements.items():
+            name = name.replace(full, short)
+        return name
+
+    labels = [short_label(str(name)) for name in view.roi]
+    y = np.arange(len(view))
+    incoming = view.incoming_change.to_numpy()
+    outgoing = view.outgoing_change.to_numpy()
+    totals = incoming + outgoing
+
+    fig, ax = plt.subplots(
+        figsize=(9, max(4.2, 0.43 * len(view) + 1.5)),
+        constrained_layout=True,
+    )
+
+    ax.barh(
+        y, incoming, height=0.65,
+        color="#4C78A8", label="Incoming",
+    )
+    ax.barh(
+        y, outgoing, left=incoming, height=0.65,
+        color="#E5A34D", label="Outgoing",
+    )
+
+    ax.set_yticks(y)
+    ax.set_yticklabels(labels, fontsize=10)
+
+    # Totals at the ends of the stacked bars.
+    xmax = max(float(totals.max()), 1e-6)
+    for yi, total in zip(y, totals):
+        ax.text(
+            total + 0.018 * xmax, yi, f"{total:.2f}",
+            va="center", fontsize=9, color="#374151",
+        )
+
+    ax.set_xlim(0, xmax * 1.14)
+    ax.set_axisbelow(True)
+    ax.xaxis.grid(True, color="#E5E7EB", linewidth=0.8)
+    ax.yaxis.grid(False)
+
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+
+    ax.tick_params(axis="both", length=0)
+    ax.tick_params(axis="y", pad=8)
+
+    ax.set_xlabel(
+        r"Total absolute weight change, $\sum |\Delta W|$",
+        fontsize=10, labelpad=10,
+    )
+    ax.set_title(
+        "ROI reorganization",
+        loc="left", fontsize=13, fontweight="bold", pad=48,
+    )
+    ax.legend(
+        loc="lower left",
+        bbox_to_anchor=(0, 1.01),
+        ncol=2,
+        frameon=False,
+        fontsize=9,
+        borderaxespad=0,
+    )
+
     _scale_figure_fonts(fig)
-    fig.savefig(path,dpi=180,bbox_inches="tight"); plt.close(fig)
+    fig.savefig(path, dpi=300, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
 
 
 def plot_key_edge_bootstrap_distributions(frame,delta_boot,path,terms=("PAG","Insula","PMC","Motor Area","Cerebell"),max_edges=6):
@@ -1061,7 +1147,7 @@ def plot_sex_dag_comparison(
     male_delta_sig=None,
     female_delta_sig=None,
     dpi=300,
-    fontsize_scale=1.2
+    fontsize_scale=1.4
 ):
     """Report-ready 2x3 sex/state directed-network comparison."""
     names = [abbreviate_roi_label(label) for label in names]
@@ -1081,6 +1167,14 @@ def plot_sex_dag_comparison(
         ["Female — Control", "Female — SDV", "Female — SDV − Control"],
     ]
 
+    legend = [
+        Line2D([0], [0], color="#b2182b", lw=3, label="Positive directed weight/change"),
+        Line2D([0], [0], color="#2166ac", lw=3, label="Negative directed weight/change"),
+        Line2D([0], [0], color="0.2", lw=4, label=r"Thick: bootstrap $p_{unc}<0.05$"),
+        Line2D([0], [0], color="0.2", lw=1.5, alpha=0.4, label=r"Thin: $p_{unc}\geq0.05$ or bootstrap not run"),
+    ]
+
+
     angles = np.linspace(
         0,
         2 * np.pi,
@@ -1092,10 +1186,17 @@ def plot_sex_dag_comparison(
     )
 
     fig, axes = plt.subplots(
-        2,
-        3,
-        figsize=(24, 15),
-        constrained_layout=True,
+        2, 3,
+        figsize=(24, 13.5),
+        constrained_layout=False,
+    )
+    fig.subplots_adjust(
+        left=0.015,
+        right=0.985,
+        bottom=0.075,   # Space for the legend
+        top=0.925,     # Space for the overall title
+        wspace=0.04,
+        hspace=0.10,
     )
 
     for row in range(2):
@@ -1161,27 +1262,23 @@ def plot_sex_dag_comparison(
                     zorder=2,
                 )
 
+            ax.set_aspect("equal", adjustable="box")
+            ax.set_xlim(-1.28, 1.28)  # Retain room for long horizontal labels
+            ax.set_ylim(-1.12, 1.12)  # Remove excess space above/below the nodes
+
             ax.set_title(
                 titles[row][col],
                 fontsize=18 * fontsize_scale,
-                pad=12,
+                y=1.0,
+                pad=2,
             )
-            ax.set_aspect("equal")
-            ax.set_xlim(-1.28, 1.28)
-            ax.set_ylim(-1.28, 1.28)
             ax.axis("off")
 
     fig.suptitle(
         "Sex-Stratified Static Directed Networks and Bladder-State Reorganization",
         fontsize=23 * fontsize_scale,
+        y=0.985,
     )
-
-    legend = [
-        Line2D([0], [0], color="#b2182b", lw=3, label="Positive directed weight/change"),
-        Line2D([0], [0], color="#2166ac", lw=3, label="Negative directed weight/change"),
-        Line2D([0], [0], color="0.2", lw=4, label=r"Thick: bootstrap $p_{unc}<0.05$"),
-        Line2D([0], [0], color="0.2", lw=1.5, alpha=0.4, label=r"Thin: $p_{unc}\geq0.05$ or bootstrap not run"),
-    ]
 
     fig.legend(
         handles=legend,
@@ -1189,7 +1286,10 @@ def plot_sex_dag_comparison(
         ncol=4,
         frameon=False,
         fontsize=14 * fontsize_scale,
-        bbox_to_anchor=(0.5, -0.005),
+        bbox_to_anchor=(0.5, 0.015),
+        borderaxespad=0,
+        columnspacing=1.3,
+        handletextpad=0.6,
     )
 
     fig.savefig(

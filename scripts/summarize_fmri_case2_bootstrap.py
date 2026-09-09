@@ -1,13 +1,15 @@
 """Recompute Case 2 inference products exclusively from saved fits/checkpoints."""
 from __future__ import annotations
-import argparse,json,sys
+import argparse,json,sys,os
 from pathlib import Path
 import numpy as np
+import matplotlib.pyplot as plt
 
 ROOT=Path(__file__).resolve().parents[1]; sys.path.insert(0,str(ROOT/"src"))
 from causal_opt.fmri import (plot_bootstrap_edge_significance,plot_bootstrap_edge_stability,
     plot_bootstrap_edge_intervals,plot_key_edge_bootstrap_distributions,
-    plot_node_reorganization,plot_nominal_bootstrap_edge_intervals, plot_graph_comparison)
+    plot_node_reorganization,plot_nominal_bootstrap_edge_intervals, plot_graph_comparison, plot_anatomical_graph_difference)
+from causal_opt.fmri_data import load_conn_roi_zip
 from causal_opt.fmri_inference import (compute_bootstrap_edge_statistics,
     compute_edge_selection_stability,edge_results_dataframe,load_bootstrap_results,node_reorganization,
     compute_bootstrap_nonzero_statistics)
@@ -78,6 +80,48 @@ def main(argv=None):
         significant_control=control_sig,
         significant_sdv=sdv_sig,
     )
+
+    # Anatomical graph difference plot. TODO: Modularize
+    # Load the original BN19 coordinates; this does not fit any models.
+    data_dir = (
+        ROOT.parent
+        / "fmri_connectivity"
+        / "data"
+        / "mat_files"
+        / "rs_sessions_r03_healthy"
+    )
+    session1_zip = Path(
+        os.getenv(
+            "FMRI_SESSION1_ZIP",
+            str(data_dir / "roi_rs_sessions_Session1.zip"),
+        )
+    )
+    control = load_conn_roi_zip(session1_zip, expected_session="001")
+
+    # Verify that coordinates follow the saved model's ROI order.
+    with np.load(out / "static_control.npz", allow_pickle=False) as saved:
+        saved_roi_names = tuple(map(str, saved["roi_names"]))
+
+    if control.roi_names != saved_roi_names:
+        raise ValueError("Coordinate ROI order differs from saved model.")
+
+    delta_sig = np.asarray(stats["p_boot"]) < 0.05
+    np.fill_diagonal(delta_sig, False)
+
+    fig, ax = plot_anatomical_graph_difference(
+        Wc,
+        Ws,
+        control.roi_xyz,
+        names,
+        output_path=out / "case2_sdv_minus_control_coronal.png",
+        view="coronal",
+        min_abs_change=args.edge_threshold,
+        significant_mask=delta_sig,
+        title="SDV − Control: Coronal View",
+        figsize=(12, 10),
+        dpi=300,
+    )
+    plt.close(fig)
 
     print(f"Valid paired bootstrap replicates: {boot['successful']}"); print(f"Nominal p < 0.05 edges: {len(nominal)}"); print(f"FDR q < 0.05 edges: {len(fdr)}"); print(json.dumps(focus_summary,indent=2,default=float))
 
