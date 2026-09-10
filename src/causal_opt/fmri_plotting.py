@@ -974,6 +974,8 @@ def _plot_anatomical_mec_transitions(
              ha="center", fontsize=10)
     fig.subplots_adjust(left=.07 if not sex else .03, right=.96, top=.88,
                         bottom=.28 if sex else .30, wspace=.22)
+    _scale_figure_fonts(fig)
+    
     if output_path is not None:
         fig.savefig(mec_output_path(output_path), dpi=dpi, bbox_inches="tight", facecolor="white")
     return fig, axes if sex else axes[0]

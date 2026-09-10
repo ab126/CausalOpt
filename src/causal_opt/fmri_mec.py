@@ -210,12 +210,13 @@ def circular_nodes(ax, names, *, fontsize=12):
 def plot_circular_mec(states, names, path, threshold, *, titles=None, sex=False,
                       fontsize_scale=1.2, dpi=180):
     import matplotlib.pyplot as plt
+    from causal_opt.fmri_plotting import _scale_figure_fonts
 
     graphs = state_cpdags(states, threshold, names)
     fig, axes = plt.subplots(2 if sex else 1, 3 if sex else 2,
                              figsize=(24, 14) if sex else (16, 8), squeeze=False)
     fig.subplots_adjust(left=.025, right=.975, bottom=.19 if sex else .15,
-                        top=.89, wspace=.06, hspace=.16)
+                        top=.89, wspace=.06, hspace=.26) # TODO: adjust vertical spacing
     for row in range(len(axes)):
         for col in range(axes.shape[1]):
             ax = axes[row, col]
@@ -236,5 +237,6 @@ def plot_circular_mec(states, names, path, threshold, *, titles=None, sex=False,
             if sex else "")
     fig.text(.5, .012, note + "Compelled within the selected MEC, not statistical confidence. "
              f"State threshold |W| ≥ {threshold:g}.", ha="center", fontsize=11)
+    _scale_figure_fonts(fig)
     fig.savefig(mec_output_path(path), dpi=dpi, bbox_inches="tight", facecolor="white")
     plt.close(fig)
