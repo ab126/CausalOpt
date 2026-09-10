@@ -20,7 +20,16 @@ def _load_static(path):
 
 
 def main(argv=None):
-    ap=argparse.ArgumentParser(description=__doc__); ap.add_argument("output_dir",type=Path); ap.add_argument("--edge-threshold",type=float,default=.3); ap.add_argument("--stability-thresholds",type=float,nargs="+",default=[.05,.1,.2,.3]); args=ap.parse_args(argv)
+    ap=argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("output_dir",type=Path)
+    ap.add_argument("--edge-threshold",type=float,default=.3,
+                    help="state |W| threshold defining each selected DAG; changing it can change the MEC")
+    ap.add_argument("--min-abs-change",type=float,default=None,
+                    help="weighted anatomical |SDV-Control| threshold only (default: edge-threshold); ignored in MEC mode")
+    ap.add_argument("--show-mec", action=argparse.BooleanOptionalAction, default=True,
+                    help="CPDAG structures/transitions in _mec figures (default); --no-show-mec restores weighted DAGs and coefficient significance")
+    ap.add_argument("--stability-thresholds",type=float,nargs="+",default=[.05,.1,.2,.3])
+    args=ap.parse_args(argv)
     out=args.output_dir; Wc,names=_load_static(out/"static_control.npz"); Ws,names_sdv=_load_static(out/"static_sdv.npz")
     if names!=names_sdv: raise ValueError("saved static ROI ordering differs")
     boot=load_bootstrap_results(out/"case2_bootstrap")
@@ -79,6 +88,7 @@ def main(argv=None):
         args.edge_threshold,
         significant_control=control_sig,
         significant_sdv=sdv_sig,
+        show_mec=args.show_mec,
     )
 
     # Anatomical graph difference plot. TODO: Modularize
@@ -115,7 +125,9 @@ def main(argv=None):
         names,
         output_path=out / "case2_sdv_minus_control_coronal.png",
         view="coronal",
-        min_abs_change=args.edge_threshold,
+        min_abs_change=args.edge_threshold if args.min_abs_change is None else args.min_abs_change,
+        dag_threshold=args.edge_threshold,
+        show_mec=args.show_mec,
         significant_mask=delta_sig,
         title="SDV − Control: Coronal View",
         figsize=(12, 10),

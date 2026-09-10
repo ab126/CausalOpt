@@ -63,6 +63,8 @@ from causal_opt.simulation.static_sem import EstimatorResult
 
 def parser():
     ap=argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--show-mec", action=argparse.BooleanOptionalAction, default=True,
+                    help="plot selected CPDAG structures; --no-show-mec preserves weighted DAG plots")
     ap.add_argument(
         "session1_zip",
         type=Path,
@@ -167,7 +169,7 @@ def main(argv=None):
         save_result(args.output_dir/"static_control.npz",rc,control.roi_names,display,control.subject_ids,{"X_shape":Xc.shape}); save_result(args.output_dir/"static_sdv.npz",rs,sdv.roi_names,display,sdv.subject_ids,{"X_shape":Xs.shape})
         plot_matrix_comparison(rc.W0,rs.W0,display,("Control W","SDV W","SDV - Control"),args.output_dir/"static_W_comparison.png")
         plot_matrix_comparison(Sc,Ss,display,("Control LL^T","SDV LL^T","SDV - Control"),args.output_dir/"static_latent_comparison.png",True)
-        plot_graph_comparison(rc.W0,rs.W0,display,args.output_dir/"static_graph_comparison.png",args.edge_threshold)
+        plot_graph_comparison(rc.W0,rs.W0,display,args.output_dir/"static_graph_comparison.png",args.edge_threshold,show_mec=args.show_mec)
         summary["static"]={"control":model_statistics(rc.W0,Sc,rc.diagnostics["h_thresholded"]),"sdv":model_statistics(rs.W0,Ss,rs.diagnostics["h_thresholded"]),"top_W_changes":top_matrix_changes(rc.W0,rs.W0,display),"top_latent_changes":top_matrix_changes(Sc,Ss,display)}
         _print("static summary",summary["static"])
         if args.case2_baselines:
@@ -180,8 +182,8 @@ def main(argv=None):
             plot_two_matrix_comparison(rc.W0,bc["notears"].W0,display,("Latent Case 2 Control W","Standard NOTEARS Control W"),args.output_dir/"static_control_proposed_vs_notears.png")
             plot_two_matrix_comparison(rs.W0,bs["notears"].W0,display,("Latent Case 2 SDV W","Standard NOTEARS SDV W"),args.output_dir/"static_sdv_proposed_vs_notears.png")
             plot_matrix_comparison(bc["notears"].W0,bs["notears"].W0,display,("Control NOTEARS","SDV NOTEARS","SDV - Control"),args.output_dir/"notears_W_comparison.png")
-            plot_graph_comparison(rc.W0,bc["notears"].W0,display,args.output_dir/"static_control_proposed_vs_notears_graph.png",args.edge_threshold,("Proposed Control","NOTEARS Control"))
-            plot_graph_comparison(rs.W0,bs["notears"].W0,display,args.output_dir/"static_sdv_proposed_vs_notears_graph.png",args.edge_threshold,("Proposed SDV","NOTEARS SDV"))
+            plot_graph_comparison(rc.W0,bc["notears"].W0,display,args.output_dir/"static_control_proposed_vs_notears_graph.png",args.edge_threshold,("Proposed Control","NOTEARS Control"),show_mec=args.show_mec)
+            plot_graph_comparison(rs.W0,bs["notears"].W0,display,args.output_dir/"static_sdv_proposed_vs_notears_graph.png",args.edge_threshold,("Proposed SDV","NOTEARS SDV"),show_mec=args.show_mec)
             baseline_rows=[]
             for method,state,result in (("Proposed latent Case 2","Control",rc),("Proposed latent Case 2","SDV",rs),("Standard NOTEARS","Control",bc["notears"]),("Standard NOTEARS","SDV",bs["notears"])):
                 baseline_rows.append({"Method":method,"State":state,"Directed edges":int(np.count_nonzero(result.W0)),"Other/PAG edges":"N/A","h(W)":result.diagnostics.get("h_thresholded"),"Fit loss":result.diagnostics.get("fit_loss")})
@@ -732,6 +734,7 @@ def main(argv=None):
                 r_fs.W0,
                 display,
                 sex_out / "sex_static_dag_comparison.png",
+                show_mec=args.show_mec,
                 threshold=args.edge_threshold,
                 male_control_sig=mc_sig,
                 male_sdv_sig=ms_sig,
@@ -772,6 +775,8 @@ def main(argv=None):
                 control.roi_xyz,
                 display,
                 sex_out / "sex_interaction_anatomical.png",
+                show_mec=args.show_mec, dag_threshold=args.edge_threshold,
+                state_matrices=(W_mc, W_ms, W_fc, W_fs),
                 view="coronal",
                 min_abs_change=args.edge_threshold,
                 title=(
@@ -798,6 +803,9 @@ def main(argv=None):
                 control.roi_xyz,
                 display,
                 sex_out / "male_sdv_control_anatomical.png",
+                show_mec=args.show_mec, dag_threshold=args.edge_threshold,
+                state_matrices=(W_mc, W_ms),
+                mec_title="Male: Control → SDV CPDAG transitions",
                 view="coronal",
                 min_abs_change=args.edge_threshold,
                 title="Male: SDV − Control",
@@ -812,6 +820,9 @@ def main(argv=None):
                 control.roi_xyz,
                 display,
                 sex_out / "female_sdv_control_anatomical.png",
+                show_mec=args.show_mec, dag_threshold=args.edge_threshold,
+                state_matrices=(W_fc, W_fs),
+                mec_title="Female: Control → SDV CPDAG transitions",
                 view="coronal",
                 min_abs_change=args.edge_threshold,
                 title="Female: SDV − Control",

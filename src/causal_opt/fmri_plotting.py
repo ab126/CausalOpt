@@ -10,6 +10,11 @@ from matplotlib.patches import Ellipse, FancyArrowPatch
 from matplotlib.lines import Line2D
 from matplotlib.colors import TwoSlopeNorm
 import nibabel as nib
+from .fmri_mec import (
+    mec_output_path, plot_circular_mec, state_cpdags, cpdag_transitions,
+    sex_transition_comparison, draw_transition_edges, draw_sex_history_edges,
+    category_legend, SEX_STYLES, MEC_DESCRIPTION,
+)
 
 BLADDER19_LABELS = (
     "Cerebellum 1",
@@ -234,10 +239,16 @@ def plot_dynamic_matrix_comparison(
 
 
 def plot_graph_comparison(control,sdv,names,path,threshold=.3,
-                          titles=("Control causal DAG","SDV causal DAG"), significant_control=None, significant_sdv=None, fontsize_scale=1.2):
-    """Plot two directed graphs as a 1x2 figure, with optional significance highlighting."""
+                          titles=("Control causal DAG","SDV causal DAG"), significant_control=None, significant_sdv=None, fontsize_scale=1.2, *, show_mec=True):
+    """Compare state CPDAGs; show_mec=False retains signed DAGs and p-value overlays."""
     
     names = [abbreviate_roi_label(label) for label in names]
+
+    if show_mec:
+        return plot_circular_mec(
+            (control, sdv), names, path, threshold, titles=titles,
+            fontsize_scale=fontsize_scale,
+        )
 
     angles=np.linspace(0,2*np.pi,len(names),endpoint=False); positions=np.column_stack((np.cos(angles),np.sin(angles))); limit=max(np.max(np.abs(control)),np.max(np.abs(sdv)),1e-12)
     fig,axes=plt.subplots(1,2,figsize=(16,8),constrained_layout=True)
@@ -905,12 +916,79 @@ def _draw_directed_difference_edges(
                 )
 
 
+def _plot_anatomical_mec_transitions(
+    state_matrices, roi_xyz, names, output_path, *, dag_threshold, view, title,
+    figsize, dpi,
+):
+    # Convert complete state structures before drawing anything. Never convert ΔW.
+    graphs = state_cpdags(state_matrices, dag_threshold, names)
+    xyz = np.asarray(roi_xyz, float)
+    if xyz.shape != (len(names), 3) or not np.isfinite(xyz).all():
+        raise ValueError("roi_xyz must be finite and match the CPDAG ROI order")
+    views = {
+        "coronal": ((0, 2), "MNI x (Left ← → Right)", "MNI z", (-82, 82), (-50, 85)),
+        "sagittal": ((1, 2), "MNI y (Posterior ← → Anterior)", "MNI z", (-75, 75), (-50, 85)),
+        "axial": ((0, 1), "MNI x (Left ← → Right)", "MNI y", (-82, 82), (-75, 75)),
+    }
+    if view not in views:
+        raise ValueError("view must be 'coronal', 'sagittal', or 'axial'")
+    dims, xlabel, ylabel, xlim, ylim = views[view]
+    positions = xyz[:, dims]
+    sex = len(graphs) == 4
+    count = 3 if sex else 1
+    fig, axes = plt.subplots(1, count, figsize=(figsize[0] * 2.4, figsize[1] * 1.2)
+                             if sex else figsize, squeeze=False)
+    axes = axes[0]
+    transitions = [cpdag_transitions(graphs[i], graphs[i + 1]) for i in range(0, len(graphs), 2)]
+    for index, ax in enumerate(axes):
+        _draw_brain_outline(ax, view, roi_xyz=xyz)
+        if index < len(transitions):
+            draw_transition_edges(ax, transitions[index], positions, shrink=13)
+            heading = (("Male", "Female")[index] + ": Control → SDV" if sex
+                       else title or "Control → SDV: CPDAG transitions")
+        else:
+            draw_sex_history_edges(ax, sex_transition_comparison(*transitions), positions, shrink=13)
+            heading = "Sex comparison of endpoint histories\nUnordered pairs; lines do not encode direction"
+        ax.scatter(*positions.T, s=260, edgecolors="black", linewidths=1.5, zorder=3)
+        for idx, ((x, y), label) in enumerate(zip(positions, names)):
+            ax.annotate(f"{idx + 1}. {label}", (x, y),
+                        xytext=(-5 if x < -10 else 5, 4), textcoords="offset points",
+                        ha="right" if x < -10 else "left", va="bottom", fontsize=10, zorder=4)
+        ax.set_title(heading, fontsize=15, pad=18)
+        ax.set(xlabel=xlabel, ylabel=ylabel, xlim=xlim, ylim=ylim, aspect="equal")
+        ax.tick_params(labelsize=10)
+        ax.spines[["top", "right"]].set_visible(False)
+    fig.suptitle("Descriptive comparison of male/female CPDAG transitions" if sex
+                 else MEC_DESCRIPTION, fontsize=19)
+    # Separate legends avoid blending transition colors with sex-history colors.
+    fig.legend(handles=category_legend(), loc="lower center", bbox_to_anchor=(.5, .095),
+               ncol=5 if sex else 2, frameon=False, fontsize=11)
+    if sex:
+        axes[2].legend(handles=category_legend(SEX_STYLES), loc="upper center",
+                       bbox_to_anchor=(.5, -.14), ncol=2, frameon=False, fontsize=10)
+    fig.text(.5, .02,
+             "Solid: SDV endpoints; dashed: former Control endpoints on lost/changed edges.\n"
+             "Arrow: compelled; plain line: reversible, not reciprocal. Compelled ≠ confidence.\n"
+             f"State |W| ≥ {dag_threshold:g}; descriptive structure, no coefficient p-values."
+             + (" Not a statistical sex × state interaction." if sex else ""),
+             ha="center", fontsize=10)
+    fig.subplots_adjust(left=.07 if not sex else .03, right=.96, top=.88,
+                        bottom=.28 if sex else .30, wspace=.22)
+    if output_path is not None:
+        fig.savefig(mec_output_path(output_path), dpi=dpi, bbox_inches="tight", facecolor="white")
+    return fig, axes if sex else axes[0]
+
+
 def plot_anatomical_directed_difference(
     delta_w,
     roi_xyz,
     roi_labels,
     output_path=None,
     *,
+    show_mec=True,
+    dag_threshold=0.3,
+    state_matrices=None,
+    mec_title=None,
     view="coronal",
     min_abs_change=0.0,
     significant_mask=None,
@@ -923,7 +1001,18 @@ def plot_anatomical_directed_difference(
     figsize=(12, 10),
     dpi=300,
 ):
+    """Compare constituent CPDAG transitions, or plot signed delta_w in DAG mode.
+
+    MEC mode requires two/four state_matrices, ignores coefficient masks and
+    min_abs_change, and selects each state structure using dag_threshold.
+    """
     roi_labels = [abbreviate_roi_label(label) for label in roi_labels]
+    if show_mec:
+        return _plot_anatomical_mec_transitions(
+            state_matrices, roi_xyz, roi_labels, output_path,
+            dag_threshold=dag_threshold, view=view, title=mec_title,
+            figsize=figsize, dpi=dpi,
+        )
     delta_w = np.asarray(delta_w, dtype=float)
     roi_xyz = np.asarray(roi_xyz, dtype=float)
 
@@ -1106,6 +1195,8 @@ def plot_anatomical_graph_difference(
     roi_labels,
     output_path=None,
     *,
+    show_mec=True,
+    dag_threshold=0.3,
     view="coronal",
     min_abs_change=0.0,
     significant_mask=None,
@@ -1113,11 +1204,15 @@ def plot_anatomical_graph_difference(
     figsize=(12, 10),
     dpi=300,
 ):
+    """Compare two state structures; show_mec=False restores weighted SDV-Control."""
     return plot_anatomical_directed_difference(
         np.asarray(W_sdv) - np.asarray(W_control),
         roi_xyz,
         roi_labels,
         output_path,
+        show_mec=show_mec,
+        dag_threshold=dag_threshold,
+        state_matrices=(W_control, W_sdv),
         view=view,
         min_abs_change=min_abs_change,
         significant_mask=significant_mask,
@@ -1140,6 +1235,7 @@ def plot_sex_dag_comparison(
     output_path,
     threshold=0.3,
     *,
+    show_mec=True,
     male_control_sig=None,
     male_sdv_sig=None,
     female_control_sig=None,
@@ -1149,8 +1245,14 @@ def plot_sex_dag_comparison(
     dpi=300,
     fontsize_scale=1.4
 ):
-    """Report-ready 2x3 sex/state directed-network comparison."""
+    """2x3 state CPDAGs/transitions, or legacy weighted sex panels with show_mec=False."""
     names = [abbreviate_roi_label(label) for label in names]
+    if show_mec:
+        return plot_circular_mec(
+            (W_male_control, W_male_sdv, W_female_control, W_female_sdv),
+            names, output_path, threshold, sex=True,
+            fontsize_scale=fontsize_scale, dpi=dpi,
+        )
 
     matrices = [
         [W_male_control, W_male_sdv, W_male_sdv - W_male_control],

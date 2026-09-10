@@ -7,18 +7,20 @@ from .fmri_plotting import (
     plot_matrix_comparison,
     plot_dynamic_matrix_comparison,
 )
+from .fmri_mec import mec_output_path
 
 
-def plot_static_report(control, sdv, names, output, *, threshold=0.3):
+def plot_static_report(control, sdv, names, output, *, threshold=0.3, show_mec=True):
     """Write descriptive static plots and return their paths in display order."""
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
     paths = [output / f"static_{kind}_comparison.png" for kind in ("W", "latent", "graph")]
+    paths[2] = mec_output_path(paths[2], show_mec)
     plot_matrix_comparison(control.W0, sdv.W0, names,
                            ("Control W", "SDV W", "SDV - Control"), paths[0])
     plot_matrix_comparison(latent_similarity(control), latent_similarity(sdv), names,
                            ("Control LL^T", "SDV LL^T", "SDV - Control"), paths[1], True)
-    plot_graph_comparison(control.W0, sdv.W0, names, paths[2], threshold=threshold)
+    plot_graph_comparison(control.W0, sdv.W0, names, paths[2], threshold=threshold, show_mec=show_mec)
     return paths
 
 
