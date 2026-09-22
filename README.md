@@ -3,7 +3,8 @@
 CausalOpt is primarily a research implementation of causal discovery with latent low-rank confounding. It estimates sparse directed structure jointly with a low-rank latent component in static and dynamic linear systems. The repository contains synthetic experiments for four progressively harder cases and one real-world application to fMRI connectivity data.
 
 > [!IMPORTANT]
-> This repository does **not** distribute patient information or raw fMRI archives. Keep all source `.zip` files and subject-level data local; the ignore rules exclude ZIP archives and conventional local data directories. Before publishing derived results, verify that they are aggregate, de-identified, and permitted by the data-use agreement for the source dataset.
+> This repository does **not** distribute patient information or raw fMRI archives. All source `.zip` files and subject-level data are kept local; the ignore rules exclude ZIP archives and conventional local data directories. Published derived results, are aggregate, de-identified, and permitted by the data-use agreement for the source dataset.
+
 
 ## Four experimental cases
 
@@ -81,7 +82,7 @@ Remove `--smoke` and pass `--config configs/case2.yaml` or `--config configs/cas
 - [`03_dynamic_dynotears.ipynb`](notebooks/03_dynamic_dynotears.ipynb) is the Case 3 time-series debugger. It fits the dynamic `k=0` model and compares contemporaneous and lagged recovery with the official [DYNOTEARS implementation in CausalNex](https://github.com/mckinsey/causalnex) on the same realization.
 - [`04_dynamic_latent.ipynb`](notebooks/04_dynamic_latent.ipynb) is the Case 4 latent time-series debugger. It compares the proposed directed structural/latent-factor estimate with [LPCMCI in Tigramite](https://github.com/jakobrunge/tigramite) and the [Liéois sparse-plus-low-rank AR reference implementation](https://github.com/CyclotronResearchCentre/SparseLowRankIdentification). Because these methods return different mathematical objects, the notebook reports only semantically valid comparisons rather than a universal DAG ranking.
 
-The separate [`fmri_control_sdv_causal_analysis.ipynb`](notebooks/fmri_control_sdv_causal_analysis.ipynb) applies the static and dynamic latent methods to de-identified ROI-level fMRI time series. It is an application notebook, not one of the four synthetic cases. Users must supply authorized data locally; never commit archives, subject identifiers, acquisition metadata containing identifiers, or other patient information.
+The separate [`fmri_control_sdv_causal_analysis.ipynb`](notebooks/fmri_control_sdv_causal_analysis.ipynb) applies the static and dynamic latent methods to de-identified ROI-level fMRI time series. It is an application notebook, not one of the four synthetic cases. Users must supply authorized data locally; archives, subject identifiers, acquisition metadata containing identifiers, or other patient information are never committed.
 
 The notebook loads BN18 derivatives from the sibling `fmri_connectivity` project (override its location with `FMRI_CONNECTIVITY_ROOT`). Its explicit `PAIRING = "intersection"` setting retains subjects present in both states and warns about exclusions. Use `"strict"` to require every subject in both states. Results go to `results/fmri_notebook_bn18`; older CONN BN19 inference caches are not reused.
 
