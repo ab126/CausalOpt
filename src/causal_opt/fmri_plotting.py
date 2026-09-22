@@ -13,7 +13,7 @@ import nibabel as nib
 from .fmri_mec import (
     mec_output_path, plot_circular_mec, state_cpdags, cpdag_transitions,
     sex_transition_comparison, draw_transition_edges, draw_sex_history_edges,
-    category_legend, SEX_STYLES, MEC_DESCRIPTION,
+    category_legend, SEX_STYLES, MEC_DESCRIPTION, TRANSITION_STYLES,
 )
 
 BLADDER19_LABELS = (
@@ -775,6 +775,89 @@ def _draw_brain_outline(ax, view, roi_xyz=None):
         )
 
 
+def _draw_anatomical_glyph(
+    ax, x, y, i, j, linewidth, edge_color, *, significant=False,
+    directed=True, linestyle="-", lane=0,
+):
+    """Shared curvature, clipping, arrow sizing and curve-relative star."""
+    start = np.asarray(
+        (x[i], y[i]),
+        dtype=float,
+    )
+    end = np.asarray(
+        (x[j], y[j]),
+        dtype=float,
+    )
+
+    rad = 0.10 if i < j else -0.10
+
+    # Separate reciprocal edges so neither direction is hidden.
+    if lane:
+        direction = end - start
+        length = max(float(np.linalg.norm(direction)), 1e-12)
+        perpendicular = np.asarray(
+            [-direction[1], direction[0]]
+        ) / length
+
+        offset = 2.5 * lane * perpendicular
+        start = start + offset
+        end = end + offset
+
+    arrow = FancyArrowPatch(
+        start,
+        end,
+        arrowstyle="-|>" if directed else "-",
+        linestyle=linestyle,
+        mutation_scale=24,
+        linewidth=linewidth,
+        color=edge_color,
+        alpha=0.82,
+        connectionstyle=f"arc3,rad={rad}",
+        shrinkA=13,
+        shrinkB=13,
+        zorder=2.6 if significant else 2,
+    )
+    ax.add_patch(arrow)
+
+    # Mark p_unc < 0.05 edges.
+    if significant:
+        midpoint = 0.5 * (start + end)
+
+        direction = end - start
+        length = max(
+            float(np.linalg.norm(direction)),
+            1e-12,
+        )
+
+        perpendicular = np.asarray(
+            [-direction[1], direction[0]]
+        ) / length
+
+        # Actual midpoint of matplotlib's arc3 quadratic curve.
+        curve_midpoint = (
+            midpoint
+            - 0.5 * rad * length * perpendicular
+        )
+
+        # Small visual separation from the arrow itself.
+        star_position = (
+            curve_midpoint
+            - 1.25 * np.sign(rad) * perpendicular
+        )
+
+        ax.text(
+            star_position[0],
+            star_position[1],
+            "*",
+            ha="center",
+            va="center",
+            fontsize=18,
+            fontweight="bold",
+            color="black",
+            zorder=5,
+        )
+
+
 def _draw_directed_difference_edges(
     ax,
     delta_w,
@@ -839,89 +922,63 @@ def _draw_directed_difference_edges(
                 + 5.0 * abs(dw) / max_abs_delta
             )
 
-            start = np.asarray(
-                (x[i], y[i]),
-                dtype=float,
-            )
-            end = np.asarray(
-                (x[j], y[j]),
-                dtype=float,
+            _draw_anatomical_glyph(
+                ax, x, y, i, j, linewidth, edge_color,
+                significant=significant_mask[i, j], lane=int(edge_mask[j, i]),
             )
 
-            rad = 0.10 if i < j else -0.10
 
-            # Separate reciprocal edges so neither direction is hidden.
-            if edge_mask[j, i]:
-                direction = end - start
-                length = max(float(np.linalg.norm(direction)), 1e-12)
-                perpendicular = np.asarray(
-                    [-direction[1], direction[0]]
-                ) / length
+_ANATOMICAL_TRANSITION_LABELS = {
+    "gained": "SDV only",
+    "lost": "Control only",
+    "unchanged": "Both states: same orientation",
+    "reversal": "Direction reversed",
+    "reversibility": "Direction resolved/unresolved",
+}
 
-                offset = 2.5 * perpendicular
-                start = start + offset
-                end = end + offset
 
-            arrow = FancyArrowPatch(
-                start,
-                end,
-                arrowstyle="-|>",
-                mutation_scale=24,
-                linewidth=linewidth,
-                color=edge_color,
-                alpha=0.82,
-                connectionstyle=f"arc3,rad={rad}",
-                shrinkA=13,
-                shrinkB=13,
-                zorder=2.6 if significant_mask[i, j] else 2,
-            )
-            ax.add_patch(arrow)
-
-            # Mark p_unc < 0.05 edges.
-            if significant_mask[i, j]:
-                midpoint = 0.5 * (start + end)
-
-                direction = end - start
-                length = max(
-                    float(np.linalg.norm(direction)),
-                    1e-12,
-                )
-
-                perpendicular = np.asarray(
-                    [-direction[1], direction[0]]
-                ) / length
-
-                # Actual midpoint of matplotlib's arc3 quadratic curve.
-                curve_midpoint = (
-                    midpoint
-                    - 0.5 * rad * length * perpendicular
-                )
-
-                # Small visual separation from the arrow itself.
-                star_position = (
-                    curve_midpoint
-                    - 1.25 * np.sign(rad) * perpendicular
-                )
-
-                ax.text(
-                    star_position[0],
-                    star_position[1],
-                    "*",
-                    ha="center",
-                    va="center",
-                    fontsize=18,
-                    fontweight="bold",
-                    color="black",
-                    zorder=5,
-                )
+def _draw_anatomical_transitions(ax, records, positions, delta_w, significant_mask):
+    glyphs = []
+    for record in records:
+        changed = record["category"] in ("reversal", "reversibility")
+        configurations = [(record["after"], "-", 1 if changed else 0)]
+        if changed:
+            configurations.append((record["before"], "--", -1))
+        elif record["category"] == "lost":
+            configurations = [(record["before"], "-", 0)]
+        for status, style, lane in configurations:
+            i, j = record["pair"]
+            if status == (1, -1):
+                i, j = j, i
+            # Keep lanes on opposite sides even when the arrow reverses.
+            lane *= 1 if i < j else -1
+            glyphs.append((i, j, status != (-1, -1), style, lane, record["category"]))
+    maximum = max([abs(delta_w[i, j]) for i, j, directed, *_ in glyphs
+                   if directed] + [1e-12])
+    for i, j, directed, style, lane, category in glyphs:
+        _draw_anatomical_glyph(
+            ax, *positions.T, i, j,
+            1.5 + 5.0 * abs(delta_w[i, j]) / maximum if directed else 2.0,
+            TRANSITION_STYLES[category][0], directed=directed,
+            significant=directed and significant_mask is not None and significant_mask[i, j],
+            linestyle=style, lane=lane,
+        )
+    return {g[2] for g in glyphs}
 
 
 def _plot_anatomical_mec_transitions(
     state_matrices, roi_xyz, names, output_path, *, dag_threshold, view, title,
-    figsize, dpi,
+    figsize, dpi, delta_w, significant_mask,
 ):
     # Convert complete state structures before drawing anything. Never convert ΔW.
     graphs = state_cpdags(state_matrices, dag_threshold, names)
+    delta_w = np.asarray(delta_w, float)
+    if delta_w.shape != (len(names), len(names)) or not np.isfinite(delta_w).all():
+        raise ValueError("delta_w must be finite and match the CPDAG ROI order")
+    if significant_mask is not None:
+        significant_mask = np.asarray(significant_mask, bool)
+        if significant_mask.shape != delta_w.shape:
+            raise ValueError("significant_mask must have the same shape as delta_w")
     xyz = np.asarray(roi_xyz, float)
     if xyz.shape != (len(names), 3) or not np.isfinite(xyz).all():
         raise ValueError("roi_xyz must be finite and match the CPDAG ROI order")
@@ -940,40 +997,65 @@ def _plot_anatomical_mec_transitions(
                              if sex else figsize, squeeze=False)
     axes = axes[0]
     transitions = [cpdag_transitions(graphs[i], graphs[i + 1]) for i in range(0, len(graphs), 2)]
+    endpoint_types = set()
     for index, ax in enumerate(axes):
         _draw_brain_outline(ax, view, roi_xyz=xyz)
         if index < len(transitions):
-            draw_transition_edges(ax, transitions[index], positions, shrink=13)
+            records = transitions[index]
+            endpoint_types.update(_draw_anatomical_transitions(
+                ax, records, positions, delta_w, significant_mask,
+            ))
             heading = (("Male", "Female")[index] + ": Control → SDV" if sex
-                       else title or "Control → SDV: CPDAG transitions")
+                       else title or "Bladder state: SDV vs Control")
         else:
-            draw_sex_history_edges(ax, sex_transition_comparison(*transitions), positions, shrink=13)
-            heading = "Sex comparison of endpoint histories\nUnordered pairs; lines do not encode direction"
-        ax.scatter(*positions.T, s=260, edgecolors="black", linewidths=1.5, zorder=3)
+            records = sex_transition_comparison(*transitions)
+            draw_sex_history_edges(ax, records, positions, shrink=13)
+            heading = "Sex comparison: endpoint histories"
+        active = {node for record in records for node in record["pair"]}
+        alpha = np.array([1.0 if i in active else .2 for i in range(len(names))])
+        ax.scatter(*positions.T, s=260, edgecolors="black", linewidths=1.5,
+                   alpha=alpha, zorder=3)
         for idx, ((x, y), label) in enumerate(zip(positions, names)):
-            ax.annotate(f"{idx + 1}. {label}", (x, y),
+            ax.annotate(re.sub(r"^\s*\d+[.)]\s*", "", label), (x, y),
                         xytext=(-5 if x < -10 else 5, 4), textcoords="offset points",
-                        ha="right" if x < -10 else "left", va="bottom", fontsize=10, zorder=4)
+                        ha="right" if x < -10 else "left", va="bottom", fontsize=10,
+                        alpha=alpha[idx], zorder=4)
         ax.set_title(heading, fontsize=15, pad=18)
         ax.set(xlabel=xlabel, ylabel=ylabel, xlim=xlim, ylim=ylim, aspect="equal")
-        ax.tick_params(labelsize=10)
+        #ax.set(xticks=[], yticks=[], ylabel="",
+        #       xlabel="Left ← → Right" if view != "sagittal" else "Posterior ← → Anterior")
         ax.spines[["top", "right"]].set_visible(False)
-    fig.suptitle("Descriptive comparison of male/female CPDAG transitions" if sex
-                 else MEC_DESCRIPTION, fontsize=19)
-    # Separate legends avoid blending transition colors with sex-history colors.
-    fig.legend(handles=category_legend(), loc="lower center", bbox_to_anchor=(.5, .095),
-               ncol=5 if sex else 2, frameon=False, fontsize=11)
     if sex:
-        axes[2].legend(handles=category_legend(SEX_STYLES), loc="upper center",
-                       bbox_to_anchor=(.5, -.14), ncol=2, frameon=False, fontsize=10)
-    fig.text(.5, .02,
-             "Solid: SDV endpoints; dashed: former Control endpoints on lost/changed edges.\n"
-             "Arrow: compelled; plain line: reversible, not reciprocal. Compelled ≠ confidence.\n"
-             f"State |W| ≥ {dag_threshold:g}; descriptive structure, no coefficient p-values."
-             + (" Not a statistical sex × state interaction." if sex else ""),
-             ha="center", fontsize=10)
+        fig.suptitle(title or "Bladder-state comparison by sex", fontsize=19)
+    categories = {r["category"] for records in transitions for r in records}
+    handles = [Line2D([], [], color=TRANSITION_STYLES[key][0], lw=2.2, label=label)
+               for key, label in _ANATOMICAL_TRANSITION_LABELS.items() if key in categories]
+    if categories & {"reversal", "reversibility"}:
+        handles += [Line2D([], [], color=".3", lw=2, linestyle=style, label=label)
+                    for style, label in (("-", "SDV"), ("--", "Control"))]
+    for directed, label in ((True, "Direction resolved"), (False, "Direction unresolved")):
+        if directed in endpoint_types:
+            handles.append(Line2D([], [], color=".3", lw=2,
+                                  marker=">" if directed else None, label=label))
+    if handles:
+        fig.legend(handles=handles, loc="lower center", bbox_to_anchor=(.5, .10),
+                   ncol=3, frameon=False, fontsize=10)
+    if sex:
+        used = {r["category"] for r in sex_transition_comparison(*transitions)}
+        axes[2].legend(handles=category_legend({k: v for k, v in SEX_STYLES.items() if k in used}),
+                       loc="upper center", bbox_to_anchor=(.5, -.14),
+                       ncol=2, frameon=False, fontsize=10)
+    caption = ("Directed-line width: |ΔW| in the fitted models.\n"
+               "Direction resolution is within the selected observed-structure equivalence class.\n"
+               "Coefficient annotations are model-specific, not equivalence-class-invariant effect estimates.")
+    if significant_mask is not None:
+        caption += ("\n* Uncorrected coefficient-difference bootstrap p < 0.05. "
+                    "Stars do not test CPDAG structural changes.")
+    if sex:
+        caption += "\nEndpoint histories compare unordered pairs; not a statistical sex × state interaction."
+    fig.text(.5, .02, caption, ha="center", fontsize=9)
     fig.subplots_adjust(left=.07 if not sex else .03, right=.96, top=.88,
-                        bottom=.28 if sex else .30, wspace=.22)
+                        bottom=.23, wspace=.14)
     _scale_figure_fonts(fig)
     
     if output_path is not None:
@@ -1005,15 +1087,17 @@ def plot_anatomical_directed_difference(
 ):
     """Compare constituent CPDAG transitions, or plot signed delta_w in DAG mode.
 
-    MEC mode requires two/four state_matrices, ignores coefficient masks and
-    min_abs_change, and selects each state structure using dag_threshold.
+    MEC mode selects two/four state structures using dag_threshold, ignoring
+    min_abs_change. Directed endpoints carry model-specific coefficient annotations.
     """
     roi_labels = [abbreviate_roi_label(label) for label in roi_labels]
     if show_mec:
         return _plot_anatomical_mec_transitions(
             state_matrices, roi_xyz, roi_labels, output_path,
-            dag_threshold=dag_threshold, view=view, title=mec_title,
-            figsize=figsize, dpi=dpi,
+            dag_threshold=dag_threshold, view=view,
+            title=mec_title if mec_title is not None else (
+                title if title != "Directed-network difference" else None),
+            figsize=figsize, dpi=dpi, delta_w=delta_w, significant_mask=significant_mask,
         )
     delta_w = np.asarray(delta_w, dtype=float)
     roi_xyz = np.asarray(roi_xyz, dtype=float)

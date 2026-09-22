@@ -123,9 +123,9 @@ def sex_transition_comparison(male, female):
 
 
 TRANSITION_STYLES = {
-    "gained": ("#009E73", "Adjacency gained"),
-    "lost": ("#D55E00", "Adjacency lost"),
-    "unchanged": ("#999999", "Retained: same endpoints"),
+    "gained": ("#D55E00", "Adjacency gained"), 
+    "lost": ("#009E73", "Adjacency lost"),
+    "unchanged": ("#7A7979", "Retained: same endpoints"),
     "reversal": ("#CC79A7", "Retained: compelled reversal"),
     "reversibility": ("#0072B2", "Retained: directed ↔ reversible"),
 }
