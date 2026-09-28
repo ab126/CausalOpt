@@ -129,7 +129,7 @@ def main(argv=None):
         dag_threshold=args.edge_threshold,
         show_mec=args.show_mec,
         significant_mask=delta_sig,
-        title="SDV − Control: Coronal View",
+        title="SDV − EB: Coronal View",
         figsize=(12, 10),
         dpi=300,
     )

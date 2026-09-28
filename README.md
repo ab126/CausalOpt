@@ -88,6 +88,47 @@ The notebook loads BN18 derivatives from the sibling `fmri_connectivity` project
 
 Reusable fMRI utilities live in `causal_opt.fmri_data` (loading, pairing, pooling), `causal_opt.fmri_plotting` (figures), and `causal_opt.fmri_reporting` (notebook reports). Existing imports from `causal_opt.fmri` remain supported. `load_paired_tsv_states(root, labels, pairing="strict")` loads `sub-*/ses-control/*timeseries.tsv` and `sub-*/ses-sdv/*timeseries.tsv`, requiring one file per subject/state and matching atlas metadata. Multiple runs must be selected upstream; they are never silently overwritten or concatenated.
 
+## Regenerate Case 2 fMRI bootstrap plots
+
+From the repository root, activate the Python environment used for the fMRI analysis. Install the plotting dependencies if needed:
+
+```powershell
+python -m pip install numpy scipy pandas matplotlib nibabel tqdm -r requirements-fmri-mec.txt
+```
+
+Regenerate the plots and inference summaries from the saved CONN BN19 fits and bootstrap checkpoints:
+
+```powershell
+python scripts/summarize_fmri_case2_bootstrap.py results/fmri_control_sdv --show-mec --edge-threshold 0.3
+```
+
+The positional argument is the existing results directory, containing `static_control.npz`, `static_sdv.npz`, and `case2_bootstrap/` with its metadata and replicate checkpoints. Substitute another compatible results directory if needed. This script does not refit models or run new bootstrap replicates; it recomputes and overwrites the summary CSV/JSON files and figures in that directory. An incomplete cache produces a warning and uses the currently valid paired replicates.
+
+The anatomical plot also reads the original Session 1 archive to obtain ROI coordinates and verifies their ordering against the saved fit. By default it uses `../fmri_connectivity/data/mat_files/rs_sessions_r03_healthy/roi_rs_sessions_Session1.zip`. If the archive is elsewhere, set its path before running the command:
+
+```powershell
+$env:FMRI_SESSION1_ZIP = "C:\path\to\roi_rs_sessions_Session1.zip"
+```
+
+This script targets the older CONN BN19 caches, not the notebook's BN18 TSV outputs in `results/fmri_notebook_bn18`.
+
+With `--show-mec` (the default), the regenerated structural figures are:
+
+- `results/fmri_control_sdv/case2_sdv_minus_control_coronal_mec.png`: anatomical SDV–Control CPDAG comparison.
+- `results/fmri_control_sdv/static_graph_comparison_mec.png`: state CPDAG comparison.
+
+The script also regenerates the bootstrap significance, stability, interval, distribution, and node-reorganization figures. In the anatomical MEC plot, directed-line widths show the fitted-model coefficient differences; stars mark uncorrected coefficient-difference bootstrap p < 0.05, not CPDAG structural changes. Direction resolution is within the selected observed-structure equivalence class.
+
+`--edge-threshold` selects each state's structure using `|W|`, so changing it can change the CPDAG. For a custom threshold, include that value in `--stability-thresholds`, for example `--edge-threshold 0.25 --stability-thresholds 0.05 0.1 0.2 0.25 0.3`. `--min-abs-change` is ignored in MEC mode.
+
+To regenerate the original signed, weighted DAG plots instead:
+
+```powershell
+python scripts/summarize_fmri_case2_bootstrap.py results/fmri_control_sdv --no-show-mec --edge-threshold 0.3 --min-abs-change 0.3
+```
+
+These structural figures use filenames without `_mec`; the anatomical plot retains significant directed coefficients even below `--min-abs-change`. Run `python scripts/summarize_fmri_case2_bootstrap.py --help` for all options.
+
 ## Citation
 
 There is not yet a DOI or archived release for this repository. Until one is available, cite the repository and the exact commit used:

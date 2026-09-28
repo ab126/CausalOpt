@@ -1005,8 +1005,8 @@ def _plot_anatomical_mec_transitions(
             endpoint_types.update(_draw_anatomical_transitions(
                 ax, records, positions, delta_w, significant_mask,
             ))
-            heading = (("Male", "Female")[index] + ": Control → SDV" if sex
-                       else title or "Bladder state: SDV vs Control")
+            heading = (("Male", "Female")[index] + ": EB → SDV" if sex
+                       else title or "Bladder state: SDV vs EB")
         else:
             records = sex_transition_comparison(*transitions)
             draw_sex_history_edges(ax, records, positions, shrink=13)
@@ -1032,7 +1032,7 @@ def _plot_anatomical_mec_transitions(
                for key, label in _ANATOMICAL_TRANSITION_LABELS.items() if key in categories]
     if categories & {"reversal", "reversibility"}:
         handles += [Line2D([], [], color=".3", lw=2, linestyle=style, label=label)
-                    for style, label in (("-", "SDV"), ("--", "Control"))]
+                    for style, label in (("-", "SDV"), ("--", "EB"))]
     for directed, label in ((True, "Direction resolved"), (False, "Direction unresolved")):
         if directed in endpoint_types:
             handles.append(Line2D([], [], color=".3", lw=2,
