@@ -930,7 +930,7 @@ def _draw_directed_difference_edges(
 
 _ANATOMICAL_TRANSITION_LABELS = {
     "gained": "SDV only",
-    "lost": "Control only",
+    "lost": "EB only",
     "unchanged": "Both states: same orientation",
     "reversal": "Direction reversed",
     "reversibility": "Direction resolved/unresolved",
